@@ -1,0 +1,251 @@
+// ─── Gemma Client ──────────────────────────────────────────────────────────────
+//
+// Calls Gemma 4 31B via Google AI Studio using the NATIVE Gemini API format
+// (more reliable than the OpenAI-compatible shim). Uses native fetch — no SDK,
+// no axios. The API key is passed as a ?key= query parameter, NOT a header.
+//
+// Separate from src/gemini/ — does not import from it.
+
+import { getNextKey, recordModelUsage, isModelExhaustedEverywhere } from './keyManager.js';
+
+const MODEL_NAME = 'gemma-4-26b-a4b-it';
+const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+// Only two tiers, and 82K calls/day of combined capacity — the cascade exists
+// for completeness, not because we expect to reach the second entry. There is
+// deliberately NO Gemini fallback: Gemma consumers stay on Gemma.
+const GEMMA_CASCADE = ['gemma-4-26b-a4b-it', 'gemma-4-31b-it'];
+
+/** Error code marking a permanent (not transient) "no budget left" failure. */
+const MODEL_EXHAUSTED = 'MODEL_EXHAUSTED';
+
+const DEFAULT_TEMPERATURE = 0.1;
+const MAX_RETRIES = 3;          // retries on 429 (rate limited)
+const SERVER_ERROR_RETRY_MS = 2_000; // wait before the single 500/503 retry
+
+// Hard per-call ceiling. Without it fetch inherits undici's 300s default, and a
+// stalled request pins a key slot for five full minutes before failing — which
+// is exactly what happened when the categorizer batched 25 titles and Gemma's
+// reasoning trace ran away. 120s is well clear of a healthy call (~35s at 15
+// titles) while failing fast enough to rotate to another key.
+const REQUEST_TIMEOUT_MS = 120_000;
+
+// Ceiling on generated tokens, reasoning trace included. Gemma 4 is a reasoning
+// model with no natural stopping point on a pathological prompt. 16384 is far
+// above any real response (categorizer ≈500 tokens, extractRequirements ≈1000),
+// so this only ever trips on a runaway.
+//
+// Deliberately generous: a cap that is too LOW is worse than none. At 2048 the
+// model spent the entire budget thinking, hit MAX_TOKENS and returned an empty
+// answer — a silent failure rather than a slow success.
+const MAX_OUTPUT_TOKENS = 16_384;
+
+/**
+ * Sleeps for the given number of milliseconds.
+ */
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Exponential backoff with jitter for the Nth (1-based) retry attempt.
+ * attempt 1 ≈ 1s, attempt 2 ≈ 2s, attempt 3 ≈ 4s, each + up to 1s jitter.
+ */
+function backoffWithJitter(attempt) {
+    const base = 1_000 * Math.pow(2, attempt - 1);
+    const jitter = Math.floor(Math.random() * 1_000);
+    return base + jitter;
+}
+
+/**
+ * Performs one HTTP call to Gemma and returns the parsed candidate text.
+ * Throws an Error tagged with `.status` so the retry loop can branch on it.
+ */
+async function requestOnce(apiKey, model, body) {
+    const url = `${API_BASE}/${model}:generateContent?key=${apiKey}`;
+
+    let res;
+    try {
+        res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        });
+    } catch (netErr) {
+        // Timeout / DNS / socket failure. Tagged 503 so the retry loop treats it
+        // as transient and rotates the key instead of failing the whole call.
+        const err = new Error(
+            `[Gemma] Request failed: ${netErr.name === 'TimeoutError' ? `timed out after ${REQUEST_TIMEOUT_MS}ms` : netErr.message}`
+        );
+        err.status = 503;
+        throw err;
+    }
+
+    if (!res.ok) {
+        let errorBody = '';
+        try { errorBody = await res.text(); } catch { /* ignore */ }
+        const err = new Error(
+            `[Gemma] API responded ${res.status} ${res.statusText}${errorBody ? ': ' + errorBody.slice(0, 300) : ''}`
+        );
+        err.status = res.status;
+        throw err;
+    }
+
+    const data = await res.json();
+    // Gemma 4 is a reasoning model — responses may include multiple parts:
+    //   parts[0] = { thought: true, text: "<thinking>..." }
+    //   parts[1] = { text: '{"required_skills":...}' }
+    // We need the last non-thought part.
+    const parts = data?.candidates?.[0]?.content?.parts || [];
+    const nonThoughtParts = parts.filter(p => !p.thought);
+    const textPart = nonThoughtParts.length > 0
+        ? nonThoughtParts[nonThoughtParts.length - 1]
+        : parts[parts.length - 1];
+    const text = textPart?.text;
+
+    if (typeof text !== 'string') {
+        const err = new Error('[Gemma] Response missing candidates[0].content.parts[0].text');
+        err.status = 0;
+        throw err;
+    }
+
+    return text;
+}
+
+/**
+ * Calls Gemma 4 31B with a system prompt + user message.
+ *
+ * @param {string} systemPrompt - system instruction text
+ * @param {string} userMessage  - user content text
+ * @param {{ temperature?: number, model?: string }} [options]
+ * @returns {Promise<string>} the model's raw response text
+ *
+ * Retry policy:
+ *   - 429 (rate limited): exponential backoff + jitter, rotate key, up to MAX_RETRIES
+ *   - 500/503 (server error): retry once after 2s
+ *   - any other error: throw immediately
+ */
+export async function callGemma(systemPrompt, userMessage, options = {}) {
+    const temperature = options.temperature ?? DEFAULT_TEMPERATURE;
+    const model = options.model || MODEL_NAME;
+
+    // Gemma models on the generativelanguage API do NOT accept `system_instruction`
+    // (400: "Developer instruction is not enabled for models/gemma-…") and do NOT
+    // support `responseMimeType` JSON mode. Fold the system prompt into the user
+    // turn and let parseJsonResponse() extract the JSON from the plain-text reply.
+    const body = {
+        contents: [{
+            role: 'user',
+            parts: [{ text: `${systemPrompt}\n\n${userMessage}` }],
+        }],
+        generationConfig: {
+            temperature,
+            maxOutputTokens: MAX_OUTPUT_TOKENS,
+        },
+    };
+
+    let rateLimitRetries = 0;
+    let hasRetriedServerError = false;
+
+    while (true) {
+        const slot = getNextKey(model);
+
+        // Every key is out of budget or at its per-minute ceiling for this
+        // model. Surface it as a tagged error so the cascade can drop a tier.
+        if (!slot) {
+            const err = new Error(`[Gemma] Model ${model} exhausted on all keys`);
+            err.code = MODEL_EXHAUSTED;
+            throw err;
+        }
+
+        const { apiKey, index: keyIndex } = slot;
+
+        const startedAt = Date.now();
+        try {
+            const text = await requestOnce(apiKey, model, body);
+            recordModelUsage(keyIndex, model);
+            const durationMs = Date.now() - startedAt;
+            console.log(
+                `[Gemma] OK — model=${model} keyIndex=${keyIndex} duration=${durationMs}ms`
+            );
+            return text;
+        } catch (error) {
+            const durationMs = Date.now() - startedAt;
+            const status = error.status;
+            console.warn(
+                `[Gemma] FAIL — model=${model} keyIndex=${keyIndex} ` +
+                `duration=${durationMs}ms status=${status ?? 'n/a'} msg=${error.message}`
+            );
+
+            // Rate limited — back off, rotate to next key, retry.
+            if (status === 429) {
+                rateLimitRetries += 1;
+                if (rateLimitRetries > MAX_RETRIES) {
+                    throw new Error(
+                        `[Gemma] Rate limited — exhausted ${MAX_RETRIES} retries`
+                    );
+                }
+                const waitMs = backoffWithJitter(rateLimitRetries);
+                console.warn(
+                    `[Gemma] 429 — backoff ${waitMs}ms then retry ` +
+                    `${rateLimitRetries}/${MAX_RETRIES} (rotating key)`
+                );
+                await sleep(waitMs);
+                continue;
+            }
+
+            // Transient server error — retry exactly once after 2s.
+            if (status === 500 || status === 503) {
+                if (hasRetriedServerError) {
+                    throw new Error(
+                        `[Gemma] Server error ${status} persisted after retry`
+                    );
+                }
+                hasRetriedServerError = true;
+                console.warn(`[Gemma] ${status} — retrying once after ${SERVER_ERROR_RETRY_MS}ms`);
+                await sleep(SERVER_ERROR_RETRY_MS);
+                continue;
+            }
+
+            // Anything else — fail fast.
+            throw error;
+        }
+    }
+}
+/**
+ * Calls Gemma without naming a model: tries 26B first, falling back to 31B only
+ * once 26B has no daily budget left on any key.
+ *
+ * @param {string} systemPrompt
+ * @param {string} userMessage
+ * @param {{ temperature?: number }} [options]
+ * @returns {Promise<string>} the model's raw response text
+ */
+export async function callGemmaWithCascade(systemPrompt, userMessage, options = {}) {
+    for (let i = 0; i < GEMMA_CASCADE.length; i++) {
+        const model = GEMMA_CASCADE[i];
+
+        if (isModelExhaustedEverywhere(model)) {
+            const next = GEMMA_CASCADE[i + 1];
+            if (next) console.warn(`[Gemma] Model ${model} exhausted on all keys, cascading to ${next}`);
+            continue;
+        }
+
+        console.log(`[Gemma] Cascade selected model: ${model}`);
+        try {
+            return await callGemma(systemPrompt, userMessage, { ...options, model });
+        } catch (error) {
+            // Budget ran out mid-flight — drop a tier. Everything else is
+            // transient and belongs to the caller.
+            if (error?.code === MODEL_EXHAUSTED) {
+                const next = GEMMA_CASCADE[i + 1];
+                if (next) console.warn(`[Gemma] Model ${model} exhausted on all keys, cascading to ${next}`);
+                continue;
+            }
+            throw error;
+        }
+    }
+
+    throw new Error('[Gemma] All models exhausted for the day');
+}

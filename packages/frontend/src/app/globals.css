@@ -1,0 +1,2828 @@
+@import "tailwindcss";
+
+/* ── Scrollbar (theme-aware) ──────────────────────── */
+/* Matches the site palette in both light and dark mode
+   instead of the default browser gray. */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* Firefox */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) var(--bg-base);
+}
+
+/* ── Reset ────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+/* ── Base ─────────────────────────────────────────── */
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  transition: background 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), color 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+body.jobs-split-locked {
+  overflow: hidden;
+}
+
+body.jobs-split-locked #root {
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════════════
+   PAPER TEXTURE — dual-layer global overlay
+   Tune: --paper-grain-opacity, --paper-fiber-opacity,
+         --paper-contrast, --paper-noise-scale,
+         --paper-drift-distance, --paper-drift-duration
+   ═══════════════════════════════════════════════════ */
+
+/* Layer B: Grain/noise (stronger, animated drift) */
+body::after {
+  content: '';
+  position: fixed;
+  inset: -20px;
+  /* bleed hides drift edge seams */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-size: calc(var(--paper-noise-scale, 200) * 1px) calc(var(--paper-noise-scale, 200) * 1px);
+  pointer-events: none;
+  z-index: 9999;
+  opacity: var(--paper-grain-opacity, 0.11);
+  mix-blend-mode: multiply;
+  filter: contrast(var(--paper-contrast, 1.0));
+  will-change: transform;
+  animation: grain-drift var(--paper-drift-duration, 14s) ease-in-out infinite alternate;
+}
+
+/* Layer A: Paper fibers (softer, static depth) */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.45' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23f)' opacity='0.06'/%3E%3C/svg%3E");
+  background-size: 300px 300px;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: var(--paper-fiber-opacity, 0.06);
+  mix-blend-mode: overlay;
+}
+
+/* Grain drift */
+@keyframes grain-drift {
+  0% {
+    transform: translate(0, 0);
+  }
+
+  50% {
+    transform: translate(var(--paper-drift-distance, 12px), calc(var(--paper-drift-distance, 12px) * -0.6));
+  }
+
+  100% {
+    transform: translate(calc(var(--paper-drift-distance, 12px) * -0.4), var(--paper-drift-distance, 12px));
+  }
+}
+
+/* ── Typography helpers ───────────────────────────── */
+.font-sketch {
+  font-family: 'Caveat', 'Patrick Hand', 'Comic Neue', ui-sans-serif;
+}
+
+.font-sketch-num {
+  font-family: 'Caveat', 'Patrick Hand', ui-sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Scrollbar: narrow variant for inner panels ───── */
+.thin-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+
+/* ── Focus ring ─────────────────────────────────────
+   The browser default is a hard blue ring; --focus-ring (0 0 0 3px @ 30%
+   alpha) was still heavy on form controls. Text inputs get a softer 2px glow
+   plus a border shift; everything else keeps the stronger ring, which is what
+   makes keyboard focus legible on buttons and links.
+
+   NOTE: outline is removed, never replaced with nothing — a control with no
+   visible focus state is a WCAG 2.4.7 failure. */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+input:focus, input:focus-visible,
+select:focus, select:focus-visible,
+textarea:focus, textarea:focus-visible,
+button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(31, 111, 235, 0.1);
+}
+
+/* Mouse clicks on a button should not paint a ring; keyboard focus must. */
+button:focus {
+  outline: none;
+}
+
+/* ═══════════════════════════════════════════════════
+   TICKER
+   ═══════════════════════════════════════════════════ */
+@keyframes ticker {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.ticker-track {
+  animation: ticker 40s linear infinite;
+}
+
+/* ── Company auto-ticker ───────────────────────────── */
+@keyframes company-ticker {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+.company-ticker-wrap {
+  position: relative;
+  overflow: hidden;
+  padding: 4px 0 12px;
+}
+
+.company-ticker-track {
+  display: inline-flex;
+  gap: 16px;
+  animation: company-ticker 30s linear infinite;
+  will-change: transform;
+  /* left padding so first card isn't flush against the gradient edge */
+  padding-left: 24px;
+}
+
+/* Pause when anything inside the ticker is hovered/focused */
+.company-ticker-wrap:hover .company-ticker-track,
+.company-ticker-wrap:focus-within .company-ticker-track {
+  animation-play-state: paused;
+}
+
+/* Fade edges using the section background colour */
+.company-ticker-wrap::before,
+.company-ticker-wrap::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 80px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.company-ticker-wrap::before {
+  left: 0;
+  background: linear-gradient(to right, var(--surface-solid), transparent);
+}
+
+.company-ticker-wrap::after {
+  right: 0;
+  background: linear-gradient(to left, var(--surface-solid), transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .company-ticker-track {
+    animation-duration: 120s;
+  }
+}
+
+.ticker-wrap::before,
+.ticker-wrap::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 100px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.ticker-wrap::before {
+  left: 0;
+  background: linear-gradient(to right, var(--paper), transparent);
+}
+
+.ticker-wrap::after {
+  right: 0;
+  background: linear-gradient(to left, var(--paper), transparent);
+}
+
+/* ═══════════════════════════════════════════════════
+   ENTRANCE ANIMATIONS
+   ═══════════════════════════════════════════════════ */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -300% 0;
+  }
+
+  to {
+    background-position: 300% 0;
+  }
+}
+
+/* Draw-in: stroke-dasharray reveal for borders */
+@keyframes drawIn {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0;
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+/* Wobble settle: element drawn then settles */
+@keyframes wobbleSettle {
+  0% {
+    transform: rotate(calc(var(--card-tilt, 0) * 2.5)) scale(0.97);
+    opacity: 0;
+  }
+
+  50% {
+    transform: rotate(calc(var(--card-tilt, 0) * -1.5));
+    opacity: 1;
+  }
+
+  70% {
+    transform: rotate(calc(var(--card-tilt, 0) * 0.8));
+  }
+
+  100% {
+    transform: rotate(var(--card-tilt, 0)) translateX(var(--card-shift, 0)) scale(1);
+  }
+}
+
+.anim-up {
+  animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.anim-in {
+  animation: fadeIn 0.35s ease both;
+}
+
+.anim-scale {
+  animation: scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.anim-draw {
+  animation: drawIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.stagger>* {
+  animation: wobbleSettle 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.stagger>*:nth-child(1) {
+  animation-delay: .04s
+}
+
+.stagger>*:nth-child(2) {
+  animation-delay: .09s
+}
+
+.stagger>*:nth-child(3) {
+  animation-delay: .14s
+}
+
+.stagger>*:nth-child(4) {
+  animation-delay: .19s
+}
+
+.stagger>*:nth-child(5) {
+  animation-delay: .24s
+}
+
+.stagger>*:nth-child(6) {
+  animation-delay: .29s
+}
+
+.stagger>*:nth-child(n+7) {
+  animation-delay: .34s
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   HOMEPAGE — 2026 depth / elevation / hover system.
+   Cards float on soft shadows; shadows deepen in dark mode; hover lifts
+   the card and (for job cards) tints the title with the brand blue.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Hero gradient — a subtle brand-blue tint at the top fading to transparent. */
+.home-hero {
+  background: linear-gradient(180deg, rgba(31, 111, 235, 0.04) 0%, transparent 100%);
+}
+[data-theme='dark'] .home-hero {
+  background: linear-gradient(180deg, rgba(31, 111, 235, 0.06) 0%, transparent 100%);
+}
+
+/* Elevated search bar floating on the hero. */
+.home-search {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border-radius: 14px;
+}
+[data-theme='dark'] .home-search {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+/* Soft-elevated card base (differentiators, companies, articles). */
+.home-elev {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+[data-theme='dark'] .home-elev {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+@media (hover: hover) and (pointer: fine) {
+  .home-elev:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08); }
+  [data-theme='dark'] .home-elev:hover { box-shadow: 0 8px 25px rgba(31, 111, 235, 0.12); }
+}
+
+/* Job card — borderless, elevated, lifts on hover; title goes brand-blue. */
+.home-job-card {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+[data-theme='dark'] .home-job-card {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.home-job-card__title { transition: color 150ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .home-job-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08); }
+  [data-theme='dark'] .home-job-card:hover { box-shadow: 0 8px 25px rgba(31, 111, 235, 0.12); }
+  .home-job-card:hover .home-job-card__title { color: var(--primary); }
+}
+
+/* Discovery chip — bold brand-blue fill on hover. */
+.discovery-chip { transition: background 150ms ease, color 150ms ease, border-color 150ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .discovery-chip:hover { background: var(--primary) !important; color: #fff !important; border-color: var(--primary) !important; }
+}
+
+/* Company avatar — same-color letters; acid ring on hover. */
+.home-company__avatar { transition: border-color 150ms ease, background 150ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .home-company:hover .home-company__avatar { border-color: var(--acid); background: var(--acid-soft); }
+}
+
+/* View-all link — arrow nudges right on hover. */
+.home-viewall__arrow { transition: transform 150ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .home-viewall:hover .home-viewall__arrow { transform: translateX(4px); }
+}
+
+/* City / category grid link — brand-blue + underline on hover. */
+.home-grid-link { transition: color 150ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .home-grid-link:hover { color: var(--primary); text-decoration: underline; }
+}
+
+/* ── Sanitized HTML job description ───────────────── */
+/* Applied when DescriptionHtml is available from the scraper.           */
+/* All structural tags are kept; presentational tags were stripped at     */
+/* ingest time by SanitizeHtml() in utils.js.                            */
+.job-description-html {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* Cap the reading measure (~68ch) so long JDs stay scannable. */
+  max-width: 720px;
+}
+.job-description-html > :first-child {
+  margin-top: 0 !important;
+}
+/* Hide empty paragraphs and nbsp-only paragraphs */
+.job-description-html p:empty,
+.job-description-html p:has(> br:only-child) {
+  display: none;
+}
+.job-description-html p {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  line-height: 1.75;
+  margin-bottom: 10px;
+}
+.job-description-html ul,
+.job-description-html ol {
+  margin: 0 0 12px 8px;
+  padding-left: 14px;
+  border-left: 2px solid var(--border);
+  display: grid;
+  gap: 6px;
+}
+.job-description-html li {
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  line-height: 1.7;
+}
+.job-description-html h1,
+.job-description-html h2,
+.job-description-html h3,
+.job-description-html h4,
+.job-description-html h5,
+.job-description-html h6 {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 20px 0 10px;
+}
+.job-description-html h1:first-child,
+.job-description-html h2:first-child,
+.job-description-html h3:first-child,
+.job-description-html h4:first-child {
+  margin-top: 0;
+}
+.job-description-html strong,
+.job-description-html b {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.job-description-html em,
+.job-description-html i {
+  font-style: italic;
+}
+
+/* ── Browse cards + detail page motion ─────────────────────────
+   Every state change here gets a 150–200ms ease so nothing snaps:
+   hover on a card, a freshly loaded page of cards, the detail page
+   swapping its skeleton for content, and the search ghost text. */
+.job-card {
+  /* Explicit properties only — `all` re-runs layout-affecting transitions
+     (padding, width) and forces a style recalc on every hover. */
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.job-card:hover {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-strong) !important;
+  box-shadow: 0 2px 10px rgba(20, 20, 20, 0.08);
+  transform: translateY(-1px);
+}
+[data-theme='dark'] .job-card:hover {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+.job-card:focus-visible {
+  outline: 2px solid var(--acid);
+  outline-offset: 2px;
+}
+/* Title tints on hover so the whole card reads as one link target. */
+.job-card__title { transition: color 150ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .job-card:hover .job-card__title { color: var(--primary); }
+}
+
+/* Newly mounted cards (initial page + every infinite-scroll batch). Keys are
+   stable so already-visible cards never re-run this. `--i` is the card's
+   index within its batch; the delay is capped so a 30-card page finishes
+   entering in ~400ms instead of trailing off for a second. */
+.card-enter {
+  animation: cardEnter 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(min(var(--i, 0), 10) * 32ms);
+}
+@keyframes cardEnter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Detail page body: skeleton → content swap and the initial page paint. */
+.page-fade-in {
+  animation: fadeIn 200ms ease both;
+}
+
+/* Search ghost text stays mounted and fades instead of popping. */
+.ghost-text {
+  transition: opacity 150ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .job-card { transition: none; }
+  .job-card:hover { transform: none; }
+  .card-enter,
+  .page-fade-in { animation: none; opacity: 1; }
+  .ghost-text { transition: none; }
+}
+
+/* ── Skeleton ─────────────────────────────────────────────────────────
+   The old gradient went --paper2 → --surface-solid, which are the SAME colour
+   in dark mode, so placeholders were invisible. Base and highlight are now
+   derived from the text colour so they read in both themes, and the sweep is
+   a translated ::after (compositor-only) instead of a background-position
+   animation on a 300%-wide gradient. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--text-primary) 7%, var(--bg-surface));
+  border-radius: 10px;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--text-primary) 9%, transparent) 50%,
+    transparent 100%
+  );
+  animation: skeleton-sweep 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes skeleton-sweep {
+  to { transform: translateX(100%); }
+}
+/* Structural skeleton that mirrors a job card, so the swap to real content
+   does not reflow. Same border, radius and padding as .job-card. */
+.skeleton-card {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  animation: fadeIn 200ms ease both;
+}
+.skeleton-card > .skeleton { flex-shrink: 0; }
+.skeleton-card__lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+/* Successive placeholders pulse slightly out of phase so the list reads as
+   loading rather than as one frozen block. */
+.skeleton-card:nth-child(2n) .skeleton::after { animation-delay: 0.15s; }
+.skeleton-card:nth-child(3n) .skeleton::after { animation-delay: 0.3s; }
+
+/* ── Dot grid pattern (notebook paper feel) ───────── */
+.grid-bg {
+  background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* ═══════════════════════════════════════════════════
+   NAV — hand-drawn tabs / bookmarks
+   ═══════════════════════════════════════════════════ */
+.nav-blur {
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+}
+
+/* Nav link: sketched underline that draws in when active */
+.nav-tab {
+  position: relative;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 5px 2px;
+  transition: color 0.22s;
+}
+
+.nav-tab::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: -2px;
+  right: -2px;
+  height: 2.5px;
+  background: var(--primary);
+  border-radius: 2px;
+  transform: scaleX(0) rotate(-0.5deg);
+  transform-origin: left center;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nav-tab.active::after {
+  transform: scaleX(1) rotate(-0.5deg);
+}
+
+.nav-tab:hover::after {
+  transform: scaleX(0.6) rotate(-0.5deg);
+}
+
+.nav-tab.active:hover::after {
+  transform: scaleX(1) rotate(-0.5deg);
+}
+
+/* ═══════════════════════════════════════════════════
+   JOB CARD hover bar (sketch ink accent)
+   ═══════════════════════════════════════════════════ */
+.job-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.job-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--primary);
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.job-card:hover {
+  border-color: var(--primary) !important;
+  /* No positional shift on hover — border + shadow convey the state. */
+  box-shadow: var(--shadow-md);
+}
+
+/* ── Why cards ────────────────────────────────────── */
+.why-card {
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (hover: hover) {
+  .why-card:hover {
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.10), 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .why-card {
+    transition: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   SKETCH-INK: double-stroke illusion for components
+   Apply .sketch-ink to any bordered element.
+   ═══════════════════════════════════════════════════ */
+.sketch-ink {
+  position: relative;
+}
+
+.sketch-ink::before,
+.sketch-ink::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--sketch-wobble, 0.6px));
+  border: 1px solid var(--ink-border, var(--border));
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.sketch-ink::before {
+  transform: rotate(var(--sketch-rotate, -0.15deg));
+  opacity: 0.20;
+}
+
+.sketch-ink::after {
+  transform: rotate(calc(-1 * var(--sketch-rotate, -0.15deg))) translateX(calc(var(--sketch-wobble, 0.6px) * 0.3));
+  opacity: 0.12;
+}
+
+/* ═══════════════════════════════════════════════════
+   SKETCH-CARD: double-stroke + surface highlight
+   ═══════════════════════════════════════════════════ */
+.sketch-card {
+  position: relative;
+  border: 1.25px solid var(--ink-border, var(--border));
+  border-radius: 14px;
+  box-shadow: var(--highlight-edge, none);
+}
+
+.sketch-card::before {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--sketch-wobble, 0.6px));
+  border: 1px solid var(--ink-border, var(--border));
+  border-radius: 15px;
+  opacity: var(--sketch-outline-opacity, 0.22);
+  pointer-events: none;
+  transform: rotate(var(--sketch-rotate, -0.15deg));
+}
+
+.sketch-card::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--sketch-wobble, 0.6px) * 0.5);
+  border: 1px solid var(--ink-border, var(--border));
+  border-radius: 15px;
+  opacity: calc(var(--sketch-outline-opacity, 0.22) * 0.5);
+  pointer-events: none;
+  transform: rotate(calc(-1 * var(--sketch-rotate, -0.15deg)));
+}
+
+/* ── Sketch surface highlight (stacked paper) ─────── */
+.sketch-surface {
+  box-shadow: var(--highlight-edge, none), var(--shadow-sm);
+}
+
+/* ── Sketch border utility ────────────────────────── */
+.sketch-border {
+  border: 1.25px solid var(--ink-border, var(--border));
+  border-radius: 14px;
+}
+
+/* ═══════════════════════════════════════════════════
+   MARKER HIGHLIGHT hover effect
+   A translucent "marker stroke" behind hovered elements
+   ═══════════════════════════════════════════════════ */
+/* marker-hover REMOVED — its ::before drew a translucent shape inset -2px -4px
+   BEYOND the element, so on hover a box grew behind buttons (the "double
+   border / expanding" look). Buttons now change background-color only. */
+
+/* The only hover a button gets: a subtle background-color change. Gated to
+   pointer devices, and !important because Button.tsx sets its base background
+   inline (inline styles otherwise beat a stylesheet :hover rule). */
+@media (hover: hover) and (pointer: fine) {
+  .btn-ghost:hover,
+  .btn-outline:hover {
+    background-color: var(--bg-surface-2) !important;
+  }
+  .btn-primary:hover {
+    background-color: var(--primary-hover) !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   MICRO-IMPERFECTIONS — deterministic per-card tilt
+   Uses nth-child to assign tiny rotation/offset.
+   Max tilt 0.4deg, max shift ~1.5px.
+   ═══════════════════════════════════════════════════ */
+.micro-imperfect>*:nth-child(6n+1) {
+  --card-tilt: 0.15deg;
+  --card-shift: 0.5px;
+}
+
+.micro-imperfect>*:nth-child(6n+2) {
+  --card-tilt: -0.25deg;
+  --card-shift: -1px;
+}
+
+.micro-imperfect>*:nth-child(6n+3) {
+  --card-tilt: 0.35deg;
+  --card-shift: 0.8px;
+}
+
+.micro-imperfect>*:nth-child(6n+4) {
+  --card-tilt: -0.12deg;
+  --card-shift: -0.5px;
+}
+
+.micro-imperfect>*:nth-child(6n+5) {
+  --card-tilt: 0.28deg;
+  --card-shift: 1.2px;
+}
+
+.micro-imperfect>*:nth-child(6n+6) {
+  --card-tilt: -0.38deg;
+  --card-shift: -0.3px;
+}
+
+.micro-imperfect>* {
+  transform: rotate(var(--card-tilt, 0)) translateX(var(--card-shift, 0));
+}
+
+/* ═══════════════════════════════════════════════════
+   PENCIL CHART styles — hand-drawn feel for SVG charts
+   Target chart container with .pencil-chart class
+   ═══════════════════════════════════════════════════ */
+.pencil-chart line,
+.pencil-chart .recharts-cartesian-grid-horizontal line,
+.pencil-chart .recharts-cartesian-grid-vertical line {
+  stroke-dasharray: 4 3;
+  stroke-opacity: 0.25;
+  stroke-width: 0.75;
+}
+
+.pencil-chart path {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pencil-chart .recharts-dot circle {
+  r: 3;
+  stroke-width: 1.5;
+}
+
+.pencil-chart text {
+  font-family: 'Caveat', ui-sans-serif;
+  font-size: 0.8rem;
+}
+
+/* Pencil line draw-in animation */
+.pencil-chart .recharts-line-curve {
+  stroke-dasharray: 2000;
+  stroke-dashoffset: 2000;
+  animation: pencilDraw 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes pencilDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   GLOW ORB
+   ═══════════════════════════════════════════════════ */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════
+   LAYOUT UTILITIES
+   ═══════════════════════════════════════════════════ */
+
+/* Snap carousel */
+.snap-carousel {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+}
+
+.snap-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.snap-carousel>* {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+/* Sticky filter bar */
+.sticky-filter-bar {
+  position: sticky;
+  top: 60px;
+  z-index: 40;
+  padding: 14px 18px;
+  background: color-mix(in srgb, var(--surface-solid) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1.25px solid var(--ink-border, var(--border));
+  border-radius: 14px;
+  margin-bottom: 24px;
+}
+
+/* Companies grid */
+.companies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+@media (max-width: 600px) {
+  .companies-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   ACCESSIBILITY — prefers-reduced-motion
+   Disables all animations globally for users who
+   prefer reduced motion. Grain drift, wobble settle,
+   draw-in, marker hover transitions all disabled.
+   ═══════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  body::after {
+    animation: none;
+    will-change: auto;
+  }
+
+  .stagger>* {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .micro-imperfect>* {
+    transform: none !important;
+  }
+
+  .anim-up,
+  .anim-in,
+  .anim-scale,
+  .anim-draw {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .pencil-chart .recharts-line-curve {
+    animation: none;
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+
+  .nav-tab::after {
+    transition: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   RESPONSIVE SYSTEM
+   Breakpoints:
+   xs:  < 380px   (small mobile)
+   sm:  380–640px (mobile)
+   md:  640–768px (large mobile / small tablet)
+   lg:  768–1024px (tablet)
+   xl:  1024–1280px (small laptop)
+   2xl: 1280–1440px (laptop)
+   3xl: 1440–1920px (desktop)
+   4xl: > 1920px  (large desktop / TV)
+   ═══════════════════════════════════════════════════ */
+
+/* ── Safe-area spacing helpers ─────────────────────── */
+.safe-top    { padding-top:    env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-left   { padding-left:   env(safe-area-inset-left); }
+.safe-right  { padding-right:  env(safe-area-inset-right); }
+
+/* ── Mobile nav drawer ─────────────────────────────── */
+.nav-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 59;
+  animation: fadeIn 0.18s ease both;
+}
+
+.nav-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(320px, 88vw);
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  animation: slideInRight 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes slideOutRight {
+  from { transform: translateX(0); }
+  to   { transform: translateX(100%); }
+}
+
+.nav-drawer.closing {
+  animation: slideOutRight 0.18s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+/* ── Bottom sheet ──────────────────────────────────── */
+.bottom-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 200;
+  animation: fadeIn 0.18s ease both;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  border-radius: 16px 16px 0 0;
+  z-index: 201;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  padding-bottom: env(safe-area-inset-bottom);
+  animation: slideInUp 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes slideInUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes slideOutDown {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+
+.bottom-sheet.closing {
+  animation: slideOutDown 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.bottom-sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 10px auto 0;
+  flex-shrink: 0;
+}
+
+.bottom-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.bottom-sheet-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  padding: 12px 16px;
+}
+
+.bottom-sheet-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* ── Sticky bottom bar (mobile detail apply/actions) ── */
+.sticky-bottom-bar {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  padding: 10px 16px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+/* ── Mobile detail slide-in overlay ──────────────────── */
+.mobile-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--bg-base, #FAF7F1);
+    overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: slideInFromRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  padding-top: env(safe-area-inset-top);
+}
+
+@keyframes slideInFromRight {
+  from { transform: translateX(100%); opacity: 0.6; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+.mobile-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+  min-height: 52px;
+}
+
+.mobile-detail-body {
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    padding: 12px 12px 32px;
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Touch targets ──────────────────────────────────── */
+@media (max-width: 767px) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  button,
+  [role="button"],
+  a,
+  select,
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-height: 44px;
+  }
+
+  /* Override for small decorative buttons (pagination dots, etc.) */
+  .no-touch-expand {
+    min-height: unset !important;
+    min-width: unset !important;
+  }
+}
+
+/* ── Hover effects: only real pointer devices ─────────── */
+@media (hover: none) {
+  .job-card:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    border-color: var(--border) !important;
+  }
+
+  .job-card::before {
+    display: none;
+  }
+}
+
+/* ── Split view responsive grid ──────────────────────── */
+.split-grid {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .split-grid {
+    display: grid;
+    grid-template-columns: 40% 60%;
+    gap: 14px;
+    flex: 1;
+    min-height: 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .split-grid {
+    grid-template-columns: 35% 65%;
+  }
+}
+
+/* No max-width here: the grid fills its container, and the page container
+   (.dashboard-shell) owns the 1440px cap. A second cap on the grid used to
+   fight the container and leave dead space on wide screens. */
+@media (min-width: 1440px) {
+  .split-grid {
+    grid-template-columns: 30% 70%;
+  }
+}
+
+@media (min-width: 1920px) {
+  .split-grid {
+    grid-template-columns: 28% 72%;
+  }
+}
+
+/* ── Company logo marquee (homepage) ─────────────────────
+   The track renders the company list TWICE; translating it -50% lands the
+   second copy exactly where the first began, so the loop is seamless. Changing
+   the duplication count without changing this percentage will break it. */
+.marquee-mask {
+  /* Fade the two edges so logos enter and leave instead of being sliced by a
+     hard boundary. */
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+}
+
+.marquee-track {
+  display: flex;
+  align-items: center;
+  gap: 48px;
+  width: max-content;
+  animation: marquee-scroll 45s linear infinite;
+}
+
+/* Pause so a logo can actually be read and clicked. */
+.marquee-track:hover,
+.marquee-track:focus-within {
+  animation-play-state: paused;
+}
+
+@keyframes marquee-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* Continuous motion with no way to stop it is a vestibular trigger; WCAG
+   2.3.3 / prefers-reduced-motion says hold it still and let the row scroll
+   manually instead. */
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
+  .marquee-mask {
+    overflow-x: auto !important;
+  }
+}
+
+/* ── Browse layout (/jobs) ───────────────────────────────
+   Replaces the split view: a fixed-width filter rail on the left, job cards
+   filling the rest. The detail panel is gone — cards open /jobs/[id] in a new
+   tab. .split-grid below is still used by /remote-jobs and the admin queues. */
+.browse-layout {
+  display: flex;
+  gap: 24px;
+  flex: 1;
+  min-height: 0;
+}
+
+.browse-sidebar {
+  /* 312px = the old 300px rail + 12px of inner padding (6px each side), so
+     focus rings and hover backgrounds have room and are never clipped by the
+     rail's own scroll box. */
+  width: 312px;
+  min-width: 312px;
+  padding: 0 6px;
+  /* Sticky, not fixed: it scrolls with the page until it reaches the nav, then
+     holds while the (much longer) job column keeps scrolling. */
+  position: sticky;
+  top: 70px;
+  height: calc(100vh - 70px);
+  overflow-y: auto;
+  flex-shrink: 0;
+  /* Clears the scrollbar so rows and their right-aligned counts are not
+     tucked underneath it. */
+  padding-right: 12px;
+  scrollbar-width: thin;                      /* Firefox */
+  scrollbar-color: var(--border) transparent;
+}
+
+/* Match .thin-scroll rather than the chunky default track. */
+.browse-sidebar::-webkit-scrollbar {
+  width: 5px;
+}
+.browse-sidebar::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+.browse-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.browse-jobs-grid {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Below 768px the sidebar is replaced by the existing top bar + bottom sheet,
+   which are untouched by this layout. */
+@media (max-width: 767px) {
+  .browse-layout {
+    display: block;
+  }
+  .browse-sidebar {
+    display: none;
+  }
+}
+
+/* ── Dashboard page shell ────────────────────────────────
+   One container for BOTH job pages (/jobs and /remote-jobs) so their width,
+   centering, and gutters are identical. Nothing inside adds side padding. */
+.dashboard-shell {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  /* 20px side gutters so content never sits flush against the viewport edge.
+     Everything inside — filter bar, split-grid, mobile list — inherits this
+     gutter, so no child adds its own left/right padding on top of it. */
+  padding: 0 18px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-list-only {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 768px) {
+  .mobile-list-only {
+    display: none !important;
+  }
+}
+
+/* Mirror of .mobile-list-only for the /jobs card column. */
+.desktop-cards-only {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .desktop-cards-only {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* ── Container max widths ────────────────────────────── */
+@media (min-width: 1440px) {
+  .container-responsive {
+    max-width: 1600px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+@media (min-width: 1920px) {
+  .container-responsive {
+    max-width: 1800px;
+  }
+
+  .container-responsive .right-panel-text {
+    max-width: 800px;
+  }
+}
+
+/* ── Filter pill: one control language for every filter control ── */
+/* Dropdown triggers, toggle chips, and the salary group all share this
+   shape so the bar reads as one system instead of mixed species. */
+.filter-pill {
+  border-radius: 999px !important;
+  transition:
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 150ms ease,
+    background 150ms ease,
+    color 150ms ease;
+}
+.filter-pill:active {
+  transform: scale(0.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  .filter-pill:active {
+    transform: none;
+  }
+}
+
+/* ── Filter bar responsive ───────────────────────────── */
+.filter-bar-full {
+  display: none;
+}
+
+.filter-bar-tablet {
+  display: none;
+}
+
+.filter-bar-mobile {
+  display: flex;
+}
+
+@media (min-width: 768px) {
+  /* ≥768px uses the single-row bar + expandable "More filters" panel.
+     The old two-row tablet layout is retired. */
+  .filter-bar-mobile { display: none; }
+  .filter-bar-tablet { display: none; }
+  .filter-bar-full   { display: flex; }
+}
+
+/* ── "More filters" expandable panel ─────────────────────────────── */
+.filter-panel {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 200ms ease;
+}
+.filter-panel.open {
+  max-height: 800px;
+}
+.filter-panel-inner {
+  background: var(--bg-surface-2);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 16px;
+  margin-top: 10px;
+}
+/* Tablet: groups stack vertically. Desktop (≥1024): horizontal with dividers. */
+.filter-panel-groups { display: flex; flex-direction: column; gap: 16px; }
+@media (min-width: 1024px) {
+  .filter-panel-groups { flex-direction: row; align-items: flex-start; gap: 0; }
+  .filter-panel-groups > * + * {
+    border-left: 1px solid var(--border);
+    padding-left: 20px;
+    margin-left: 20px;
+  }
+}
+
+/* ── Typography clamp scales ─────────────────────────── */
+.type-page-title    { font-size: clamp(1.4rem, 3vw, 2.2rem); }
+.type-section-title { font-size: clamp(1.1rem, 2.5vw, 1.5rem); }
+.type-job-title-detail { font-size: clamp(1.2rem, 2.5vw, 1.6rem); }
+.type-job-title-card   { font-size: clamp(0.82rem, 1.8vw, 0.95rem); }
+.type-body          { font-size: clamp(0.8rem, 1.5vw, 0.9rem); }
+.type-badge         { font-size: clamp(0.6rem, 1.2vw, 0.72rem); }
+.type-filter        { font-size: clamp(0.7rem, 1.3vw, 0.8rem); }
+.type-muted         { font-size: clamp(0.7rem, 1.3vw, 0.82rem); }
+
+/* ── Large desktop text comfort ─────────────────────── */
+@media (min-width: 1920px) {
+  body {
+    font-size: 1.05rem;
+  }
+
+  .split-grid .right-panel-content {
+    max-width: 800px;
+  }
+}
+
+/* ── Home page responsive ────────────────────────────── */
+@media (max-width: 767px) {
+  .hero-cta-group {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    max-width: 320px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .hero-cta-group a,
+  .hero-cta-group button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .hero-stats-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px 16px;
+    justify-items: center;
+  }
+
+  .why-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .why-card {
+    padding: 20px !important;
+  }
+
+  .newsletter-form {
+    flex-direction: column;
+  }
+
+  .newsletter-form input,
+  .newsletter-form button {
+    width: 100%;
+  }
+}
+
+/* ── Signup page ─────────────────────────────────────── */
+@media (max-width: 767px) {
+  .signup-form-panel {
+    padding: 28px 18px !important;
+  }
+}
+
+/* ── Card badge text ─────────────────────────────────── */
+.badge-text {
+  font-size: clamp(0.6rem, 1.2vw, 0.72rem);
+}
+
+/* ── Collapsible section ────────────────────────────── */
+.collapsible-body {
+  overflow: hidden;
+  transition: max-height 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+}
+
+.collapsible-body.collapsed {
+  max-height: 0 !important;
+  opacity: 0;
+}
+
+.collapsible-body.expanded {
+  opacity: 1;
+}
+
+/* ── Active press feedback ──────────────────────────── */
+/* Touch: instant dim + shrink (no transition needed on tap). */
+@media (hover: none) {
+  button:active,
+  [role="button"]:active {
+    opacity: 0.75;
+    transform: scale(0.97);
+  }
+}
+
+/* Pointer devices had NO press feedback before — every pressable element
+   should confirm the press. scale(0.97) is subtle; the transition back up
+   comes from each button's own `transform` transition. */
+@media (hover: hover) and (pointer: fine) {
+  button:active,
+  [role="button"]:active {
+    transform: scale(0.97);
+  }
+}
+/* ── Theme toggle icon (CSS-driven, hydration-safe) ───────────────────
+   Both icons are always in the DOM; we reveal one via the data-theme
+   attribute the ThemeProvider sets on <html>. No React conditional →
+   no SSR/client hydration mismatch. Default (no attr) = light = Moon. */
+.theme-icon { display: none; align-items: center; justify-content: center; }
+.theme-icon--light { display: inline-flex; }
+.theme-icon--dark { display: none; }
+[data-theme='dark'] .theme-icon--light { display: none; }
+[data-theme='dark'] .theme-icon--dark { display: inline-flex; }
+
+/* ════════════════════════════════════════════════════════════════════
+   CAREER GUIDE — ARTICLE READING EXPERIENCE
+   All selectors are scoped to .article-* / .toc / .reading-progress so
+   these styles never leak into the rest of the app. Editorial print feel
+   on the Paper+Ink palette; green (--acid) is the single functional accent.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Reading progress rail — pinned to the very top of the viewport, above the
+   sticky nav (nav z-index is 50). Transparent track: only the fill is visible. */
+.reading-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 60;
+  background: transparent;
+  pointer-events: none;
+}
+.reading-progress__fill {
+  height: 100%;
+  width: 0;
+  background: var(--acid);
+  box-shadow: 0 0 8px var(--acid-mid);
+  transition: width 150ms ease-out;
+}
+
+/* Layout: mobile = single column (TOC collapsible above article); tablet = TOC
+   horizontal bar above article, no right sidebar; desktop = 3 columns
+   (TOC · 780px reading column · contextual sidebar) filling up to 1400px. */
+.article-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 820px;
+  margin: 0 auto;
+  padding: clamp(16px, 3vw, 28px) 20px 64px;
+}
+.article-main { min-width: 0; max-width: 780px; }
+.article-aside { display: none; }
+
+@media (min-width: 1024px) {
+  .article-shell {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    column-gap: 40px;
+    max-width: 1400px;
+    padding: clamp(20px, 3vw, 32px) 24px 72px;
+    align-items: start;
+  }
+  .article-aside { display: block; }
+  .side-sticky {
+    position: sticky;
+    top: 84px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  /* Share + related fold into the right sidebar on desktop, so the in-article
+     footer copy of them is redundant. */
+  .article-foot { display: none; }
+}
+
+/* ── Right contextual sidebar ─────────────────────────────────────── */
+.side-badge {
+  align-self: flex-start;
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--acid);
+  background: var(--acid-soft);
+  padding: 5px 11px;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: background 0.16s ease;
+}
+.side-badge:hover { background: var(--acid-mid); }
+.side-card {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-surface);
+}
+.side-card__title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin: 0 0 8px;
+}
+.side-card__body {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin: 0 0 10px;
+}
+.side-card__link {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--acid);
+  text-decoration: none;
+}
+.side-card__link:hover { text-decoration: underline; }
+.side-guides { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.side-guides a {
+  display: block;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.side-guides a:hover { color: var(--acid); }
+/* Share renders flush inside its sidebar card (no divider/label). */
+.side-card .article-share { margin-top: 0; padding-top: 0; border-top: none; gap: 8px; }
+.side-card .article-share__label { display: none; }
+.side-card .article-share__link { width: 34px; height: 34px; }
+
+/* Table of contents */
+.toc {
+  margin-bottom: 28px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-surface);
+}
+.toc__label { display: none; }
+.toc__toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.toc__chevron { transition: transform 0.2s ease; font-size: 1.2rem; line-height: 1; }
+.toc__chevron--open { transform: rotate(90deg); }
+.toc__list {
+  list-style: none;
+  margin: 0;
+  padding: 0 16px;
+  max-height: 0;
+  overflow: hidden;
+}
+.toc__list--open { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+.toc__item { margin: 0; }
+.toc__item--sub { padding-left: 12px; }
+/* No connecting rail — inactive items are plain muted links. The active item
+   is the only decorated one: green text + a 2px left border. Padding is kept
+   constant across states (border replaces 2px of left padding) so nothing shifts. */
+.toc__link {
+  display: block;
+  padding: 3px 0 3px 10px;
+  border-left: 2px solid transparent;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.toc__link:hover { color: var(--text-primary); }
+.toc__link--active { color: var(--acid); border-left-color: var(--acid); font-weight: 600; }
+
+/* Tablet: TOC as a horizontal chip bar above the article (no right sidebar). */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .toc { margin-bottom: 22px; }
+  .toc__toggle { display: none; }
+  .toc__label {
+    display: block;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    padding: 8px 12px 2px;
+    margin: 0;
+  }
+  .toc__list {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 6px;
+    max-height: none;
+    padding: 6px 10px 8px;
+  }
+  .toc__item { flex: 0 0 auto; }
+  .toc__item--sub { padding-left: 0; }
+  .toc__link {
+    white-space: nowrap;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 0.76rem;
+  }
+  .toc__link--active {
+    background: var(--acid-soft);
+    border-color: var(--acid-mid);
+    color: var(--acid);
+  }
+}
+
+/* Desktop: vertical sticky rail with a label header. */
+@media (min-width: 1024px) {
+  .toc { border: none; background: none; margin: 0; }
+  .toc__toggle { display: none; }
+  .toc__label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    padding-bottom: 10px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .toc__list { max-height: none !important; overflow: visible !important; padding: 0; }
+}
+
+/* Breadcrumbs */
+.article-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+}
+.article-crumbs a { color: var(--text-secondary); text-decoration: none; }
+.article-crumbs a:hover { color: var(--acid); }
+.article-crumbs span { color: var(--border-strong); }
+
+/* Article header */
+.article-head {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.article-eyebrow {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--acid);
+  text-decoration: none;
+  margin-bottom: 10px;
+}
+.article-eyebrow:hover { text-decoration: underline; }
+.article-title {
+  font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  font-size: clamp(1.95rem, 4.5vw, 2.5rem);
+  line-height: 1.12;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  margin: 0;
+}
+.article-meta {
+  margin-top: 14px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+/* ── Article body typography ──────────────────────────────────────── */
+.article-content {
+  font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  font-size: 1.0625rem;   /* 17px — slightly tighter for the warm cream theme */
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+.article-content > *:first-child { margin-top: 0; }
+.article-content p { margin: 0 0 1em; }
+
+/* Drop cap — the editorial signature. Ink, not green: a letterform moment,
+   keeping green as the functional accent. */
+.article-content > p:first-of-type::first-letter {
+  float: left;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 3.4em;
+  line-height: 0.78;
+  font-weight: 800;
+  padding: 0.04em 0.12em 0 0;
+  color: var(--text-primary);
+}
+
+.article-content h2 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.4rem;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--text-primary);
+  margin: 2rem 0 0.6em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border);
+  scroll-margin-top: 90px;
+}
+.article-content h3 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-primary);
+  margin: 1.5rem 0 0.5rem;
+  scroll-margin-top: 90px;
+}
+.article-content a {
+  color: var(--acid);
+  text-decoration: none;
+  text-underline-offset: 3px;
+}
+.article-content a:hover { text-decoration: underline; }
+.article-content strong { font-weight: 700; color: var(--text-primary); }
+
+.article-content ul,
+.article-content ol { margin: 0 0 1em; padding-left: 1.4em; }
+.article-content li { margin: 0 0 0.3em; padding-left: 0.3em; }
+.article-content ul { list-style: none; }
+.article-content ul > li { position: relative; }
+.article-content ul > li::before {
+  content: '';
+  position: absolute;
+  left: -1.05em;
+  top: 0.72em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--acid);
+}
+.article-content ol { list-style: decimal; }
+.article-content ol > li::marker { color: var(--acid); font-weight: 700; }
+
+.article-content blockquote {
+  margin: 1.6em 0;
+  padding: 0.3em 0 0.3em 1.2em;
+  border-left: 3px solid var(--acid);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.article-content blockquote p:last-child { margin-bottom: 0; }
+
+.article-content code {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  background: var(--bg-surface-2);
+  padding: 0.15em 0.4em;
+  border-radius: 5px;
+}
+.article-content pre {
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  overflow-x: auto;
+  margin: 0 0 1.4em;
+}
+.article-content pre code { background: none; padding: 0; font-size: 0.85rem; line-height: 1.6; }
+
+.article-content img { max-width: 100%; height: auto; border-radius: 10px; margin: 1.2em 0; }
+.article-content hr { border: none; border-top: 1px solid var(--border); margin: 2.2em 0; }
+
+.article-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+  margin: 0 0 1.4em;
+  display: block;
+  overflow-x: auto;
+}
+.article-content th,
+.article-content td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+.article-content th { background: var(--bg-surface-2); font-weight: 700; }
+
+/* Share row */
+.article-share {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 44px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border);
+}
+.article-share__label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.article-share__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  transition: color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+.article-share__link:hover { color: var(--acid); border-color: var(--acid); transform: translateY(-2px); }
+
+/* CTA */
+.article-cta {
+  margin-top: 2rem;
+  padding: clamp(24px, 4vw, 36px);
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--acid-dim), var(--acid-soft));
+  border: 1px solid var(--acid-mid);
+  text-align: center;
+}
+.article-cta__title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: clamp(1.3rem, 3vw, 1.6rem);
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+}
+.article-cta__body {
+  margin: 10px auto 22px;
+  max-width: 440px;
+  color: var(--text-secondary);
+  font-size: 0.98rem;
+  line-height: 1.6;
+}
+.article-cta__actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+
+.article-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 11px 22px;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease, filter 0.16s ease, transform 0.12s ease;
+}
+.article-btn:active { transform: scale(0.97); }
+.article-btn--primary { background: var(--acid); color: #fff; border: 1px solid var(--acid); }
+.article-btn--primary:hover { filter: brightness(1.07); }
+.article-btn--ghost { background: transparent; color: var(--text-primary); border: 1px solid var(--border-strong); }
+.article-btn--ghost:hover { border-color: var(--acid); color: var(--acid); }
+
+/* Related articles */
+.article-related { margin-top: 1.5rem; }
+.article-related__title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0 0 18px;
+}
+.article-related__grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 640px) { .article-related__grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 900px) { .article-related__grid { grid-template-columns: repeat(3, 1fr); } }
+
+.article-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  text-decoration: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+.article-card:hover { border-color: var(--acid); box-shadow: var(--shadow-md); transform: translateY(-3px); }
+.article-card__badge {
+  align-self: flex-start;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--acid);
+  background: var(--acid-soft);
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.article-card__title { font-weight: 700; font-size: 1rem; line-height: 1.35; color: var(--text-primary); }
+.article-card__desc {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.article-card__more { margin-top: auto; font-size: 0.82rem; font-weight: 600; color: var(--acid); }
+
+/* Accessibility: visible keyboard focus + reduced motion */
+.article-content a:focus-visible,
+.toc__link:focus-visible,
+.toc__toggle:focus-visible,
+.article-btn:focus-visible,
+.article-card:focus-visible,
+.article-share__link:focus-visible {
+  outline: 2px solid var(--acid);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reading-progress__fill,
+  .article-card,
+  .article-share__link,
+  .article-btn,
+  .toc__chevron { transition: none; }
+  .article-card:hover { transform: none; }
+}
+
+/* ── Career Guide hub ─────────────────────────────────────────────── */
+.guide-hub {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: clamp(24px, 5vw, 52px) clamp(16px, 4vw, 24px) 72px;
+}
+.guide-hero { max-width: 680px; margin-bottom: clamp(32px, 5vw, 52px); }
+.guide-hero__eyebrow {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--acid);
+  margin-bottom: 14px;
+}
+.guide-hero__title {
+  font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  font-size: clamp(2.1rem, 5.5vw, 3.1rem);
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--text-primary);
+  margin: 0;
+}
+.guide-hero__lede {
+  margin-top: 18px;
+  font-size: 1.08rem;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+.guide-section-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0 0 18px;
+}
+.guide-cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+.guide-cat {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg-surface);
+  text-decoration: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+.guide-cat:hover { border-color: var(--acid); box-shadow: var(--shadow-md); transform: translateY(-3px); }
+.guide-cat__name { font-weight: 700; font-size: 1.02rem; color: var(--text-primary); }
+.guide-cat__count { font-size: 0.8rem; color: var(--text-secondary); }
+.guide-cat:hover .guide-cat__count { color: var(--acid); }
+
+.guide-latest { margin-top: clamp(36px, 5vw, 56px); }
+.guide-article-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+@media (min-width: 640px) { .guide-article-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 960px) { .guide-article-grid { grid-template-columns: repeat(3, 1fr); } }
+.guide-article-card__meta {
+  margin-top: auto;
+  padding-top: 4px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.guide-cat:focus-visible,
+.guide-hub .article-card:focus-visible {
+  outline: 2px solid var(--acid);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide-cat { transition: none; }
+  .guide-cat:hover { transform: none; }
+}
+
+/* ── Career Guide hub v2 — editorial index ────────────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Topic chips — quiet pills linking to the category SEO hubs. */
+.guide-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: clamp(28px, 4vw, 40px);
+}
+.guide-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-surface);
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: border-color 0.16s ease, color 0.16s ease;
+}
+.guide-chip:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+.guide-chip__count { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); }
+.guide-chip:focus-visible { outline: 2px solid var(--acid); outline-offset: 2px; }
+
+/* Featured guide — large editorial unit framed by hairlines. */
+.guide-feature {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: clamp(22px, 3.5vw, 34px) 0;
+  border-top: 1px solid var(--text-primary);
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+}
+.guide-feature__eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--acid);
+}
+.guide-feature__title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: clamp(1.5rem, 3.6vw, 2.2rem);
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  max-width: 780px;
+  transition: color 0.16s ease;
+}
+.guide-feature:hover .guide-feature__title { color: var(--acid); }
+.guide-feature__desc {
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  max-width: 680px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.guide-feature__meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.guide-feature__cta {
+  margin-left: auto;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--acid);
+}
+.guide-feature:focus-visible { outline: 2px solid var(--acid); outline-offset: 4px; }
+
+/* All guides — hairline editorial rows. */
+.guide-index { margin-top: clamp(32px, 4.5vw, 48px); }
+.guide-rows { list-style: none; margin: 0; padding: 0; }
+.guide-rows > li { border-bottom: 1px solid var(--border); }
+.guide-rows > li:first-child { border-top: 1px solid var(--border); }
+.guide-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 2px;
+  text-decoration: none;
+  transition: background 0.16s ease;
+}
+.guide-row:hover { background: var(--bg-surface); }
+.guide-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.guide-row__cat {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.guide-row__title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.12rem;
+  line-height: 1.3;
+  font-weight: 700;
+  color: var(--text-primary);
+  transition: color 0.16s ease;
+}
+.guide-row:hover .guide-row__title { color: var(--acid); }
+.guide-row__desc {
+  font-size: 0.87rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  max-width: 620px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.guide-row__meta {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.guide-row__arrow {
+  color: var(--text-muted);
+  transition: transform 0.16s ease, color 0.16s ease;
+  display: inline-block;
+}
+.guide-row:hover .guide-row__arrow { transform: translateX(3px); color: var(--acid); }
+.guide-row:focus-visible { outline: 2px solid var(--acid); outline-offset: 2px; border-radius: 4px; }
+
+@media (max-width: 640px) {
+  .guide-row { flex-direction: column; gap: 8px; }
+  .guide-row__meta { white-space: normal; }
+  .guide-feature__cta { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide-chip, .guide-feature__title, .guide-row, .guide-row__title, .guide-row__arrow { transition: none; }
+  .guide-row:hover .guide-row__arrow { transform: none; }
+}
+
+/* ── Resume parsing progress indicator ────────────────────────────── */
+.ejg-parsing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 22px 16px;
+}
+.ejg-parsing__dots { display: inline-flex; gap: 6px; }
+.ejg-parsing__dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--acid);
+  animation: ejg-parsing-bounce 1.2s infinite ease-in-out both;
+}
+.ejg-parsing__dots span:nth-child(2) { animation-delay: 0.16s; }
+.ejg-parsing__dots span:nth-child(3) { animation-delay: 0.32s; }
+.ejg-parsing__headline {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+.ejg-parsing__msg {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin: 0;
+  min-height: 1.1em;
+  animation: ejg-parsing-pulse 2.2s ease-in-out infinite;
+}
+.ejg-parsing__hint { font-size: 0.74rem; color: var(--text-muted); margin: 0; }
+
+@keyframes ejg-parsing-bounce {
+  0%, 80%, 100% { transform: scale(0.5); opacity: 0.5; }
+  40% { transform: scale(1); opacity: 1; }
+}
+@keyframes ejg-parsing-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ejg-parsing__dots span,
+  .ejg-parsing__msg { animation: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOTION SYSTEM — route feedback, state swaps, and micro-interactions.
+   Every interactive element gets a small, fast (120–200ms) response so the
+   UI never feels stuck between a click and its result. All of it is
+   compositor-friendly (opacity / transform only) and disabled under
+   prefers-reduced-motion at the bottom of this block.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Route progress bar ─────────────────────────────────────────────
+   A 2px brand-blue line under the nav that starts moving the moment an
+   internal link is clicked and completes when the new route commits. This is
+   the single strongest cue that "something is happening" during a slow
+   navigation — without it the old page just sits there. */
+.route-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.route-progress.active { opacity: 1; }
+.route-progress__bar {
+  height: 100%;
+  width: 0%;
+  background: var(--primary);
+  box-shadow: 0 0 8px var(--primary);
+  transition: width 200ms ease-out;
+}
+.route-progress.active .route-progress__bar {
+  animation: route-progress-crawl 8s cubic-bezier(0.1, 0.6, 0.2, 1) forwards;
+}
+.route-progress.done .route-progress__bar {
+  animation: none;
+  width: 100% !important;
+}
+@keyframes route-progress-crawl {
+  0%   { width: 0%; }
+  15%  { width: 40%; }
+  50%  { width: 75%; }
+  100% { width: 92%; }
+}
+
+/* ── Page enter — content fades/rises in on every route change ───── */
+.page-enter {
+  animation: pageEnter 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ── Connection banner (browser offline) ───────────────────────────── */
+.conn-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 120;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 0.82rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-lg);
+  animation: connIn 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.conn-banner__dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--danger);
+  animation: connPulse 1.4s ease-in-out infinite;
+}
+.conn-banner--online .conn-banner__dot { background: var(--success); animation: none; }
+@keyframes connIn {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes connPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(0.8); }
+}
+
+/* ── Error state ───────────────────────────────────────────────────── */
+.error-state {
+  text-align: center;
+  padding: 56px 24px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 14px;
+  background: var(--bg-surface);
+  animation: scaleIn 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.error-state__icon {
+  width: 48px; height: 48px; border-radius: 12px;
+  margin: 0 auto 16px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+}
+.error-state__title { font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+.error-state__body  { font-size: 0.88rem; color: var(--text-secondary); max-width: 380px; margin: 0 auto 18px; line-height: 1.55; }
+.error-state__hint  { font-size: 0.74rem; color: var(--text-muted); margin-top: 14px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+/* ── Sidebar check rows ────────────────────────────────────────────── */
+.check-row {
+  transition: background-color 120ms ease, color 120ms ease, transform 120ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  /* !important: CheckRow sets background/border inline for the checked state,
+     and inline always beats a plain :hover rule. Checked rows keep their tint
+     because the checked colour is stronger than 6% ink. */
+  .check-row:not([aria-pressed="true"]):hover { background: color-mix(in srgb, var(--text-primary) 6%, transparent) !important; }
+  .check-row:not([aria-pressed="true"]):hover .check-box { border-color: var(--text-secondary) !important; }
+}
+.check-row:active { transform: scale(0.985); }
+.check-box {
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.check-box.is-checked { animation: checkPop 220ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes checkPop {
+  0%   { transform: scale(0.7); }
+  60%  { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+/* ── Save (bookmark) button ────────────────────────────────────────── */
+.save-btn {
+  transition: color 140ms ease, transform 140ms cubic-bezier(0.34, 1.56, 0.64, 1), background-color 140ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .save-btn:hover { transform: scale(1.15); background: color-mix(in srgb, var(--text-primary) 6%, transparent); color: var(--primary); }
+}
+.save-btn:active { transform: scale(0.9); }
+.save-btn.is-saved svg { animation: savePop 320ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes savePop {
+  0%   { transform: scale(0.6) rotate(-10deg); }
+  60%  { transform: scale(1.3) rotate(4deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+/* ── Theme toggle — icons cross-fade and rotate ────────────────────── */
+.theme-toggle {
+  transition: border-color 160ms ease, color 160ms ease, transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1), background-color 160ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .theme-toggle:hover { border-color: var(--text-secondary); color: var(--text-primary); transform: rotate(-15deg); }
+}
+.theme-toggle:active { transform: scale(0.9) rotate(-15deg); }
+.theme-icon svg { animation: themeIconIn 300ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes themeIconIn {
+  from { opacity: 0; transform: rotate(-90deg) scale(0.6); }
+  to   { opacity: 1; transform: rotate(0) scale(1); }
+}
+
+/* ── Company logo — fades in when the image lands instead of popping ── */
+.company-logo {
+  opacity: 0;
+  transition: opacity 220ms ease, transform 220ms ease;
+  transform: scale(0.92);
+}
+.company-logo.is-loaded { opacity: 1; transform: none; }
+.company-logo--fallback { animation: fadeIn 200ms ease both; }
+
+/* ── Nav links — underline slides in on hover ──────────────────────── */
+.nav-link { position: relative; }
+.nav-link::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--acid);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nav-link.is-active::after { transform: scaleX(1); }
+@media (hover: hover) and (pointer: fine) {
+  .nav-link:hover::after { transform: scaleX(1); }
+}
+
+/* ── Result count — the number ticks in when it changes ────────────── */
+.count-swap {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  animation: countSwap 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes countSwap {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ── Generic buttons: lift on hover ────────────────────────────────── */
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover { box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 35%, transparent); transform: translateY(-1px); }
+  .btn-ghost:hover, .btn-outline:hover { transform: translateY(-1px); }
+}
+
+/* ── Load-more spinner ─────────────────────────────────────────────── */
+.load-more-btn {
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, transform 140ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .load-more-btn:not(:disabled):hover { border-color: var(--text-secondary); color: var(--text-primary); background: color-mix(in srgb, var(--text-primary) 4%, transparent); }
+}
+
+/* ── Reduced motion: everything above collapses to instant ─────────── */
+@media (prefers-reduced-motion: reduce) {
+  .route-progress, .route-progress__bar { animation: none !important; transition: none !important; }
+  .page-enter, .card-enter, .skeleton-card, .error-state, .conn-banner,
+  .count-swap, .theme-icon svg, .check-box.is-checked, .save-btn.is-saved svg { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .skeleton::after { animation: none; }
+  .company-logo { opacity: 1; transform: none; transition: none; }
+  .theme-toggle:hover, .save-btn:hover, .check-row:active { transform: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   POLISH PASS — focus rings, scrollbars, and one shared easing.
+   --ease-out-soft is the curve used for every transform in the app from
+   here on: fast start, long soft landing (the "settles like a physical
+   object" feel). Durations: 160ms for colour, 240–320ms for movement.
+   ═══════════════════════════════════════════════════════════════════ */
+:root {
+  --ease-out-soft: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── Text inputs: one focus treatment everywhere ──────────────────────
+   The global input:focus rule painted a 2px 10%-alpha rectangle that was
+   invisible on dark and clashed with the pill border on light. Now: the
+   border itself turns brand-blue and a soft 3px halo follows the element's
+   OWN radius, animated in. */
+input:focus, input:focus-visible,
+select:focus, select:focus-visible,
+textarea:focus, textarea:focus-visible {
+  outline: none;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+input, select, textarea {
+  transition: border-color 160ms ease, box-shadow 200ms var(--ease-out-soft), background-color 160ms ease;
+}
+/* The rail's search pill: the icon tints with the ring so the whole control
+   reads as focused, not just its edge. */
+.search-input:focus { background: var(--bg-surface) !important; }
+.search-input:focus ~ * , .search-input:focus + * { color: var(--primary); }
+.relative:has(> .search-input:focus) > svg { color: var(--primary) !important; }
+.relative > svg { transition: color 160ms ease; }
+
+/* ── Scrollbars inside the rail: overlay-style, visible only while the
+   pointer is over the list, never overlapping content ──────────────── */
+.scroll-list {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 200ms ease;
+}
+.scroll-list:hover { scrollbar-color: var(--border) transparent; }
+.scroll-list::-webkit-scrollbar { width: 4px; }
+.scroll-list::-webkit-scrollbar-track { background: transparent; }
+.scroll-list::-webkit-scrollbar-thumb { background: transparent; border-radius: 4px; transition: background 200ms ease; }
+.scroll-list:hover::-webkit-scrollbar-thumb { background: var(--border); }
+/* Reserve the scrollbar's column permanently: when a section opens and the
+   rail outgrows the viewport, the scrollbar appears INSIDE the reserved space
+   instead of stealing width and nudging every row 6px to the left. */
+.browse-sidebar { scrollbar-color: transparent transparent; scrollbar-gutter: stable; }
+.browse-sidebar:hover { scrollbar-color: var(--border) transparent; }
+.browse-sidebar::-webkit-scrollbar-thumb { background: transparent; }
+.browse-sidebar:hover::-webkit-scrollbar-thumb { background: var(--border); }
+
+/* ── Section headers in the rail ───────────────────────────────────── */
+.section-toggle { transition: color 160ms ease, background-color 160ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .section-toggle:hover > span:first-child { color: var(--text-primary); }
+  .section-toggle:hover svg { color: var(--text-primary) !important; }
+}
+.section-toggle:active { transform: none; }
+
+/* ── Re-tune earlier motion onto the shared curve ──────────────────── */
+.job-card { transition-timing-function: var(--ease-out-soft); transition-duration: 240ms; }
+.card-enter { animation-timing-function: var(--ease-out-soft); }
+.page-enter { animation-timing-function: var(--ease-out-soft); }
+.check-box { transition-timing-function: ease, ease, var(--ease-spring); }
+.theme-toggle, .save-btn { transition-duration: 200ms; }
+.filter-pill { transition-timing-function: var(--ease-out-soft); }
+.nav-drawer { animation-timing-function: var(--ease-out-soft); animation-duration: 0.32s; }
+.bottom-sheet { animation-timing-function: var(--ease-out-soft); animation-duration: 0.36s; }
+.mobile-detail-overlay { animation-timing-function: var(--ease-out-soft); animation-duration: 0.32s; }
+.collapsible-body { transition-timing-function: var(--ease-out-soft), ease; }
+.filter-panel { transition: max-height 320ms var(--ease-out-soft); }
+.btn, .btn-primary, .btn-ghost, .btn-outline { transition-timing-function: ease, ease, ease, ease, var(--ease-out-soft) !important; }
+
+/* Buttons and pressables: the press-down is instant, the release springs. */
+@media (hover: hover) and (pointer: fine) {
+  button:active, [role="button"]:active { transition-duration: 60ms; }
+}
+
+/* Links in the footer and body copy underline-slide instead of snapping. */
+footer a { transition: color 160ms ease, opacity 160ms ease; }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   PROFILE PAGE — tab rail, section transitions, list rows.
+   ═══════════════════════════════════════════════════════════════════ */
+.profile-tab {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 8px;
+  width: 100%; padding: 9px 10px 9px 12px;
+  border: none; border-radius: 8px; cursor: pointer;
+  font-family: inherit; font-size: 0.85rem; font-weight: 600;
+  text-align: left; white-space: nowrap; flex-shrink: 0;
+  background: transparent; color: var(--text-secondary);
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms var(--ease-out-soft);
+}
+.profile-tab svg { transition: transform 200ms var(--ease-out-soft), color 160ms ease; flex-shrink: 0; }
+/* Active marker: a short bar that grows in from the left. */
+.profile-tab::before {
+  content: '';
+  position: absolute; left: 0; top: 50%;
+  width: 3px; height: 0; border-radius: 2px;
+  background: var(--acid);
+  transform: translateY(-50%);
+  transition: height 220ms var(--ease-out-soft);
+}
+.profile-tab.is-active { background: var(--acid-soft); color: var(--acid); font-weight: 700; }
+.profile-tab.is-active::before { height: 18px; }
+@media (hover: hover) and (pointer: fine) {
+  .profile-tab:not(.is-active):hover { background: color-mix(in srgb, var(--text-primary) 5%, transparent); color: var(--text-primary); }
+  .profile-tab:hover svg { transform: translateX(1px) scale(1.08); }
+}
+.profile-tab:active { transform: scale(0.98); }
+.profile-tab__count {
+  margin-left: auto; font-size: 0.68rem; font-weight: 700;
+  padding: 1px 7px; border-radius: 999px;
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.profile-tab.is-active .profile-tab__count { background: var(--acid); color: var(--bg-base); }
+/* Mobile: horizontal strip, marker becomes an underline. */
+.profile-tabs--mobile .profile-tab { width: auto; padding: 8px 12px; border-radius: 8px 8px 0 0; }
+.profile-tabs--mobile .profile-tab::before { left: 10px; right: 10px; top: auto; bottom: 0; width: auto; height: 2px; transform: scaleX(0); transform-origin: left; transition: transform 220ms var(--ease-out-soft); }
+.profile-tabs--mobile .profile-tab.is-active { background: transparent; }
+.profile-tabs--mobile .profile-tab.is-active::before { height: 2px; transform: scaleX(1); }
+.profile-tabs--mobile .profile-tab__count { margin-left: 2px; }
+
+/* Section swap: keyed on the tab, so each section rises in. */
+.profile-section { animation: profileSection 240ms var(--ease-out-soft) both; }
+@keyframes profileSection {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+/* Children of a section stagger in slightly after the section. */
+.profile-section > * { animation: profileSection 320ms var(--ease-out-soft) both; }
+.profile-section > *:nth-child(2) { animation-delay: 50ms; }
+.profile-section > *:nth-child(3) { animation-delay: 100ms; }
+.profile-section > *:nth-child(n+4) { animation-delay: 140ms; }
+
+/* Saved-job rows. */
+.saved-row {
+  transition: border-color 160ms ease, box-shadow 200ms var(--ease-out-soft), transform 200ms var(--ease-out-soft), background-color 160ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .saved-row:hover { border-color: var(--border-strong); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+  .saved-row:hover .saved-row__title { color: var(--primary); }
+}
+.saved-row__title { transition: color 150ms ease; }
+.saved-row.is-leaving { animation: savedLeave 220ms ease both; pointer-events: none; }
+@keyframes savedLeave { to { opacity: 0; transform: translateX(12px); } }
+
+/* Preference chips (email categories). */
+.pref-chip { transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms var(--ease-spring); }
+@media (hover: hover) and (pointer: fine) {
+  .pref-chip:not(.is-on):hover { border-color: var(--text-secondary); color: var(--text-primary); }
+}
+.pref-chip:active { transform: scale(0.95); }
+.pref-chip.is-on { animation: checkPop 220ms var(--ease-spring); }
+
+/* Identity stat tiles. */
+.id-stat { transition: background-color 160ms ease, border-color 160ms ease, transform 200ms var(--ease-out-soft); }
+@media (hover: hover) and (pointer: fine) {
+  a.id-stat:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-section, .profile-section > *, .saved-row.is-leaving, .pref-chip.is-on { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .profile-tab::before, .profile-tab, .saved-row, .pref-chip, .id-stat { transition: none; }
+}

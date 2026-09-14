@@ -1,0 +1,1 @@
+{"name":"english-jobs-germany","private":true,"packageManager":"pnpm@10.12.1","scripts":{"backend:dev":"pnpm --filter backend dev","backend:start":"pnpm --filter backend start","frontend:dev":"pnpm --filter frontend dev","frontend:build":"pnpm --filter frontend build","frontend:start":"pnpm --filter frontend start","install:all":"pnpm install"}}

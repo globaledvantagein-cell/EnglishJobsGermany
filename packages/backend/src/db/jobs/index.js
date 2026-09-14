@@ -1,0 +1,60 @@
+// Barrel for all job-related queries.
+// Split from the old monolithic db/jobQueries.js for readability.
+
+export {
+    loadAllExistingIDs,
+    saveJobs,
+    findSavedJobsByJobIDs,
+    addCuratedJob,
+} from './saveQueries.js';
+
+export {
+    getAllJobs,
+    getPublicBaitJobs,
+    findJobById,
+    findJobByIdOrJobID,
+} from './findQueries.js';
+
+export {
+    getJobsPaginated,
+    getCompanyNames,
+    getCategoryCounts,
+} from './listQueries.js';
+
+export {
+    getRejectedJobs,
+    getJobsForReview,
+    countJobsForReview,
+    getReviewQueueBreakdown,
+    reviewJobDecision,
+    getJobsEligibleForReanalysis,
+    countManuallyReviewedJobs,
+    updateJobAfterReanalysis,
+    restoreRejectedJobToQueue,
+} from './reviewQueries.js';
+
+export {
+    deleteOldJobs,
+    deleteJobById,
+    deleteJobsByCompany,
+    cleanAllDescriptions,
+    cleanOldAiResults,
+} from './cleanupQueries.js';
+
+export {
+    getCompanyDirectoryStats,
+    updateCompanyDescription,
+    getCompanyProfile,
+    getAllCompanyProfiles,
+} from './directoryQueries.js';
+export {
+    trackApplyClick,
+    confirmApplied,
+    getAppliedJobIds,
+    getAppliedJobsWithDetails,
+    saveJob,
+    unsaveJob,
+    getSavedJobIds,
+    getSavedJobsWithDetails,
+} from './trackingQueries.js';
+export { getDigestJobs } from './digestQueries.js';

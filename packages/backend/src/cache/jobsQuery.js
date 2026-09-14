@@ -1,0 +1,503 @@
+import {
+    getAllJobs, getJobsArray, getCacheStats, getJobById,
+    getWorkplaceIndex, getExperienceIndex, getEmploymentIndex,
+    getVisaIndex, getRelocationIndex, getSalaryTierIndex,
+    getCategoryIndex, getCompanyIndex,
+} from './jobsCache.js';
+import { ALL_CATEGORIES } from '../core/categorize.js';
+import { searchJobs } from './searchIndex.js';
+
+// ────────────────────────────────────────────────────────────────────────
+// Set algebra helpers
+// ────────────────────────────────────────────────────────────────────────
+
+// Intersect any number of Sets. Iterates the SMALLEST set and probes the rest
+// with .has() — the single most important optimization here. Short-circuits to
+// empty the moment the running result is empty.
+function intersectSets(sets) {
+    if (sets.length === 0) return new Set();
+    const sorted = [...sets].sort((a, b) => a.size - b.size);
+    let result = new Set(sorted[0]);
+    for (let i = 1; i < sorted.length; i++) {
+        const check = sorted[i];
+        for (const idx of result) {
+            if (!check.has(idx)) result.delete(idx);
+        }
+        if (result.size === 0) return result;
+    }
+    return result;
+}
+
+// Union any number of Sets into a fresh Set. Used when one facet has multiple
+// selected values (workplace=remote,hybrid) before intersecting with others.
+function unionSets(sets) {
+    const result = new Set();
+    for (const s of sets) {
+        for (const idx of s) result.add(idx);
+    }
+    return result;
+}
+
+// For a multi-value facet: union the index Set of each selected value. A value
+// with no bucket contributes nothing. Returns null when the facet is inactive
+// (no/empty selection) so the caller can skip intersecting it.
+function facetUnion(index, values, isValid) {
+    if (!Array.isArray(values) || values.length === 0) return null;
+    const chosen = isValid ? values.filter(isValid) : values;
+    if (chosen.length === 0) return new Set(); // active but nothing valid → empties result
+    return unionSets(chosen.map(v => index.get(v) || new Set()));
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// What /jobs is allowed to show
+// ────────────────────────────────────────────────────────────────────────
+//
+// One predicate, used by every entry point in this file, so the list, the facet
+// counts, the category counts and the homepage teaser can never disagree about
+// which jobs exist.
+//
+//   GermanRequired === false — the whole product promise.
+//   filterWorkplace !== 'remote' — fully-remote roles live on /remote-jobs.
+//     Browse Jobs is the Germany on-site/hybrid vertical; showing remote roles
+//     in both places double-counted them and made the two pages overlap.
+function isPublicJob(job) {
+    return job !== null
+        && job !== undefined
+        && job.GermanRequired === false
+        && job.filterWorkplace !== 'remote';
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Core filter pipeline (shared by list + facet counts)
+// ────────────────────────────────────────────────────────────────────────
+//
+// Returns { resultSet, jobsArr } where resultSet holds the array indexes of all
+// jobs matching EVERY active filter. Index-backed facets are resolved by Set
+// intersection; range/text/date predicates then prune the surviving set.
+function computeFilteredIndexSet(filters = {}) {
+    const jobsArr = getJobsArray();
+
+    // Universe: live (non-tombstone) jobs this vertical is allowed to show.
+    const universe = new Set();
+    for (let i = 0; i < jobsArr.length; i++) {
+        if (isPublicJob(jobsArr[i])) universe.add(i);
+    }
+
+    // Collect the index-backed facet sets to intersect with the universe.
+    const facetSets = [];
+
+    const companySet = facetUnion(getCompanyIndex(), filters.company);
+    if (companySet) facetSets.push(companySet);
+
+    const categorySet = facetUnion(
+        getCategoryIndex(), filters.category, c => ALL_CATEGORIES.includes(c),
+    );
+    if (categorySet) facetSets.push(categorySet);
+
+    const workplaceSet = facetUnion(getWorkplaceIndex(), filters.workplace);
+    if (workplaceSet) facetSets.push(workplaceSet);
+
+    const experienceSet = facetUnion(getExperienceIndex(), filters.experience);
+    if (experienceSet) facetSets.push(experienceSet);
+
+    const employmentSet = facetUnion(getEmploymentIndex(), filters.employment);
+    if (employmentSet) facetSets.push(employmentSet);
+
+    if (filters.visa === true) {
+        facetSets.push(getVisaIndex().get('available') || new Set());
+    }
+    if (filters.relocation === true) {
+        facetSets.push(getRelocationIndex().get('available') || new Set());
+    }
+    if (filters.hasSalary === true) {
+        facetSets.push(unionSets(Array.from(getSalaryTierIndex().values())));
+    }
+
+    // Intersect universe with every active facet set. With no facets this is
+    // just a copy of the universe — same cost as the old getAllJobs().filter.
+    let resultSet = intersectSets([universe, ...facetSets]);
+
+    // Predicates that can't be pre-indexed run only over the surviving set.
+    applySalaryRangeToSet(resultSet, jobsArr, filters.salaryMin, filters.salaryMax);
+    applySearchToSet(resultSet, jobsArr, filters.search);
+    applyDateToSet(resultSet, jobsArr, filters.date);
+
+    return { resultSet, jobsArr };
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Public list endpoint — main jobs feed (filtered, sorted, paginated).
+// ────────────────────────────────────────────────────────────────────────
+//
+//   filters  ← built by the route handler from req.query
+//   returns  → { jobs: [...], totalJobs: N }  (same shape MongoDB returned)
+// Memoized full-list order for the no-filter request (the most common one —
+// default page load). Keyed by cacheVersion + the UTC date: any upsert/remove/
+// refresh bumps cacheVersion, and the date rolls the shuffle at UTC midnight.
+let sortedAllMemo = { version: -1, dateKey: null, jobs: null };
+
+function isUnfiltered(filters) {
+    return (!filters.company || filters.company.length === 0)
+        && (!filters.category || filters.category.length === 0)
+        && (!filters.workplace || filters.workplace.length === 0)
+        && (!filters.experience || filters.experience.length === 0)
+        && (!filters.employment || filters.employment.length === 0)
+        && filters.visa !== true && filters.relocation !== true && filters.hasSalary !== true
+        && filters.salaryMin == null && filters.salaryMax == null
+        && (!filters.search || !filters.search.trim())
+        && (!filters.date || filters.date === 'All');
+}
+
+export function getJobsPaginatedFromCache(page = 1, limit = 30, filters = {}) {
+
+    const dateKey = todayKey();
+
+    let sorted;
+    if (isUnfiltered(filters)) {
+        const version = getCacheStats().cacheVersion;
+        if (sortedAllMemo.version !== version || sortedAllMemo.dateKey !== dateKey) {
+            const all = getJobsArray().filter(isPublicJob);
+            sortedAllMemo = { version, dateKey, jobs: shuffleJobsDaily(all, dateKey) };
+        }
+        sorted = sortedAllMemo.jobs;
+    } else {
+        const { resultSet, jobsArr } = computeFilteredIndexSet(filters);
+
+        // Materialize the surviving jobs, then shuffle (never touches cache arrays).
+        const resultJobs = [];
+        for (const idx of resultSet) resultJobs.push(jobsArr[idx]);
+        sorted = shuffleJobsDaily(resultJobs, dateKey);
+    }
+
+    // Total BEFORE slicing (frontend uses this for pagination UI).
+    const totalJobs = sorted.length;
+
+    const skip = (page - 1) * limit;
+    const pageJobs = sorted.slice(skip, skip + limit);
+
+    const normalizedJobs = pageJobs.map(job => ({
+        ...job,
+        applyClicks: job.applyClicks || 0,
+    }));
+
+    return { jobs: normalizedJobs, totalJobs };
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Facet counts — powers the "(42)" badges next to filter options.
+// ────────────────────────────────────────────────────────────────────────
+//
+// V1 (Indeed-style): counts reflect the CURRENT result set with ALL filters
+// applied — "of these results, how many are remote / senior / …". The
+// "exclude-self" (LinkedIn-style) variant can be layered on later.
+// Memoized no-filter counts (the default page load), keyed by cacheVersion —
+// same invalidation contract as the sorted-list memo above.
+let countsMemo = { version: -1, counts: null };
+
+export function getFilterCountsFromCache(filters = {}) {
+
+    const unfiltered = isUnfiltered(filters);
+    if (unfiltered) {
+        const version = getCacheStats().cacheVersion;
+        if (countsMemo.version === version && countsMemo.counts) return countsMemo.counts;
+    }
+
+    const { resultSet, jobsArr } = computeFilteredIndexSet(filters);
+
+    const counts = {
+        workplace: { remote: 0, hybrid: 0, onsite: 0 },
+        experience: { entry: 0, mid: 0, senior: 0, lead: 0, executive: 0 },
+        employment: { fulltime: 0, parttime: 0, contract: 0, internship: 0 },
+        visa: { available: 0 },
+        relocation: { available: 0 },
+        hasSalary: { count: 0 },
+        category: {},
+        totalJobs: resultSet.size,
+    };
+    for (const cat of ALL_CATEGORIES) counts.category[cat] = 0;
+
+    for (const idx of resultSet) {
+        const job = jobsArr[idx];
+
+        if (job.filterWorkplace && counts.workplace[job.filterWorkplace] !== undefined) {
+            counts.workplace[job.filterWorkplace] += 1;
+        }
+        if (job.filterExperience && counts.experience[job.filterExperience] !== undefined) {
+            counts.experience[job.filterExperience] += 1;
+        }
+        if (job.filterEmployment && counts.employment[job.filterEmployment] !== undefined) {
+            counts.employment[job.filterEmployment] += 1;
+        }
+        if (job.filterVisa === 'available') counts.visa.available += 1;
+        if (job.filterRelocation === 'available') counts.relocation.available += 1;
+        if (job.filterSalaryTier) counts.hasSalary.count += 1;
+        if (job.Category && counts.category[job.Category] !== undefined) {
+            counts.category[job.Category] += 1;
+        }
+    }
+
+    if (unfiltered) countsMemo = { version: getCacheStats().cacheVersion, counts };
+    return counts;
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Filter dropdown data — company names list.
+// ────────────────────────────────────────────────────────────────────────
+// Distinct Company values straight off the inverted index keys (no scan).
+export function getCompanyNamesFromCache() {
+    const companies = [];
+    for (const name of getCompanyIndex().keys()) {
+        if (name !== '_null') companies.push(name);
+    }
+    return companies.sort((a, b) => a.localeCompare(b));
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Filter dropdown data — category counts.
+// ────────────────────────────────────────────────────────────────────────
+// Returns map like { software: 533, data: 92, ... }, including zero-count
+// categories so the UI can render every bucket. Reads Set sizes off the index;
+// tombstones are already excluded from the index, so .size is accurate.
+export function getCategoryCountsFromCache() {
+    const counts = {};
+    for (const cat of ALL_CATEGORIES) counts[cat] = 0;
+
+    // Deliberately a scan, not categoryIndex.get(cat).size. The index counts
+    // EVERY cached job in a category — German-required and fully-remote ones
+    // included — so the badge would promise more results than /jobs can return.
+    // One pass over ~5.5k jobs is sub-millisecond and keeps the number honest.
+    const jobsArr = getJobsArray();
+    for (let i = 0; i < jobsArr.length; i++) {
+        const job = jobsArr[i];
+        if (!isPublicJob(job)) continue;
+        if (job.Category && counts[job.Category] !== undefined) counts[job.Category] += 1;
+    }
+    return counts;
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Related jobs — "more like this" for a single job detail page.
+// ────────────────────────────────────────────────────────────────────────
+//
+// Pure RAM: categoryIndex gives the array positions for the category, so this
+// touches only that category's jobs rather than scanning all ~5.5k. Applies the
+// SAME isPublicJob() gate as the list endpoint — linking to a job /jobs will
+// not show would send crawlers (and users) to a page the site disowns.
+//
+// Returns { jobs, categoryTotal } where categoryTotal is the honest public
+// count for the category, used for the "N+ positions" copy on the job page.
+// Resolve a public URL id (Mongo _id, or JobID) to the cached job. Both paths
+// stay in RAM — /:id/related must never reach Mongo.
+export function findCachedJobByAnyId(idOrJobID) {
+    const byJobId = getJobById(idOrJobID);
+    if (byJobId) return byJobId;
+    const jobsArr = getJobsArray();
+    for (let i = 0; i < jobsArr.length; i++) {
+        const job = jobsArr[i];
+        if (job && String(job._id) === String(idOrJobID)) return job;
+    }
+    return null;
+}
+
+export function getRelatedJobsFromCache(category, excludeJobId, limit = 5) {
+    const empty = { jobs: [], categoryTotal: 0 };
+    if (!category) return empty;
+
+    const idxSet = getCategoryIndex().get(category);
+    if (!idxSet || idxSet.size === 0) return empty;
+
+    const jobsArr = getJobsArray();
+    const candidates = [];
+    for (const i of idxSet) {
+        const job = jobsArr[i];
+        if (!isPublicJob(job)) continue;
+        candidates.push(job);
+    }
+
+    const categoryTotal = candidates.length;
+    // Exclude the job being viewed AFTER counting, so the total reflects the
+    // category rather than the category-minus-one.
+    const related = sortByNewest(candidates)
+        .filter(job => String(job._id) !== String(excludeJobId) && job.JobID !== excludeJobId)
+        .slice(0, limit);
+
+    return { jobs: related, categoryTotal };
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Public bait jobs — 9 newest active jobs, lightweight projection.
+// ────────────────────────────────────────────────────────────────────────
+export function getPublicBaitJobsFromCache() {
+
+    let jobs = getAllJobs();
+    jobs = jobs.filter(isPublicJob);
+    // Deliberately NOT the daily shuffle — this is the curated "9 newest"
+    // homepage teaser, not the browse view.
+    jobs = sortByNewest(jobs);
+
+    return jobs.slice(0, 9).map(job => ({
+        _id: job._id,
+        JobID: job.JobID,
+        JobTitle: job.JobTitle,
+        Company: job.Company,
+        Location: job.Location,
+        Department: job.Department,
+        Category: job.Category,
+        PostedDate: job.PostedDate,
+        ApplicationURL: job.ApplicationURL,
+        GermanRequired: job.GermanRequired,
+        applyClicks: job.applyClicks || 0,
+    }));
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Set-based predicate filters (prune the surviving index Set in place)
+// ────────────────────────────────────────────────────────────────────────
+
+// Salary range. Setting a range means "show me jobs with salary data in this
+// window", so jobs with NO salary at all (both bounds null) are excluded — most
+// jobs lack salary, and keeping them would make the filter return nearly
+// everything. A job with a known salary is dropped only when its range does not
+// overlap the requested window. (Users who want to include no-salary jobs simply
+// leave the salary inputs empty; the independent hasSalary toggle is unaffected.)
+function applySalaryRangeToSet(resultSet, jobsArr, salaryMin, salaryMax) {
+    const hasMin = salaryMin != null;
+    const hasMax = salaryMax != null;
+    if (!hasMin && !hasMax) return;
+
+    for (const idx of resultSet) {
+        const job = jobsArr[idx];
+        const min = job.filterSalaryMin ?? null;
+        const max = job.filterSalaryMax ?? null;
+
+        // No salary data at all → can't satisfy a range filter. Drop it.
+        if (min === null && max === null) {
+            resultSet.delete(idx);
+            continue;
+        }
+
+        let remove = false;
+
+        if (hasMin && min !== null && min < salaryMin) {
+            // Below the floor — keep only if the upper bound reaches into range.
+            remove = !(max !== null && max >= salaryMin);
+        }
+        if (!remove && hasMax && max !== null && max > salaryMax) {
+            // Above the ceiling — keep only if the lower bound sits within range.
+            remove = !(min !== null && min <= salaryMax);
+        }
+
+        if (remove) resultSet.delete(idx);
+    }
+}
+
+// Text search, backed by the MiniSearch index in searchIndex.js.
+//
+// Was a raw `new RegExp(input, 'i')` over every surviving job — exact substring
+// only, so "recat" found nothing for "react" and "JS" never matched
+// "JavaScript". The index gives prefix matching, fuzzy tolerance, per-field
+// boosting and synonym expansion, and returns cache indexes directly so this
+// stays a Set intersection like every other facet.
+function applySearchToSet(resultSet, jobsArr, search) {
+    if (!search || !search.trim()) return;
+    const matchingIndexes = searchJobs(search);
+    for (const idx of resultSet) {
+        if (!matchingIndexes.has(idx)) resultSet.delete(idx);
+    }
+}
+
+// Only jobs posted within the last N days. Falls back to scrapedAt when
+// PostedDate is missing (some old scraped jobs lack it).
+function applyDateToSet(resultSet, jobsArr, dateFilter) {
+    if (!dateFilter || dateFilter === 'All') return;
+
+    const daysMap = { 'Today': 1, 'This Week': 7, 'This Month': 30 };
+    const days = daysMap[dateFilter];
+    if (!days) return;
+
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const cutoff = new Date(Date.now() - days * msPerDay);
+
+    for (const idx of resultSet) {
+        const job = jobsArr[idx];
+        const postedDate = job.PostedDate ? new Date(job.PostedDate) : null;
+        if (postedDate && postedDate >= cutoff) continue;
+        const scrapedAt = job.scrapedAt ? new Date(job.scrapedAt) : null;
+        if (!(scrapedAt && scrapedAt >= cutoff)) resultSet.delete(idx);
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Sort helpers
+// ────────────────────────────────────────────────────────────────────────
+
+/** Today's date in UTC as YYYY-MM-DD — the shuffle seed and memo key. */
+export function todayKey() {
+    return new Date().toISOString().slice(0, 10);
+}
+
+// FNV-1a. Any deterministic string→int hash works; this one is short and has
+// no collisions worth worrying about over a 10-character date string.
+function hashCode(str) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 0x01000193);
+    }
+    return h >>> 0;
+}
+
+// Mulberry32 — a small seeded PRNG. Math.random() can't be seeded, and the
+// whole point here is that the order is reproducible for a given day.
+function seededRandom(seed) {
+    let a = seed >>> 0;
+    return function () {
+        a = (a + 0x6d2b79f5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+/**
+ * Deterministic daily shuffle. Returns a NEW array (cache stays untouched).
+ *
+ * Replaces the old sort modes for the browse view. Every visitor sees the same
+ * order for the whole UTC day, and refreshing the page never reshuffles — so
+ * pagination stays coherent across requests, which a per-request Math.random()
+ * would break (the same job could appear on page 1 and page 3).
+ *
+ * The order changes at UTC midnight, which is what stops the same companies
+ * from permanently owning the top of the list the way newest-first did.
+ */
+function shuffleJobsDaily(jobs, dateKey = todayKey()) {
+    const shuffled = [...jobs]; // never shuffle a cache array directly
+    const rand = seededRandom(hashCode(dateKey));
+
+    // Fisher-Yates.
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    return shuffled;
+}
+
+// Newest-first. Retained ONLY for /public-bait, which is a curated "9 newest"
+// homepage teaser rather than the browse view.
+function sortByNewest(jobs) {
+    return [...jobs].sort((a, b) => {
+        const postedCmp = compareByDate(b.PostedDate, a.PostedDate);
+        if (postedCmp !== 0) return postedCmp;
+        return compareByDate(b.createdAt, a.createdAt);
+    });
+}
+
+// Subtract two dates as numbers. Missing dates become epoch (0) so they sink to
+// the bottom in newest-first ordering.
+function compareByDate(a, b) {
+    const aTime = a ? new Date(a).getTime() : 0;
+    const bTime = b ? new Date(b).getTime() : 0;
+    return aTime - bTime;
+}
