@@ -142,9 +142,9 @@ app.listen(PORT, async () => {
             runWeeklyReset().catch(err => console.error('[weekly-reset] Failed:', err));
         }, { timezone: 'UTC' });
 
-        // WhatsApp Channel digest — daily at 08:00 UTC, one hour after the
-        // 06:00 scrape so today's new jobs are already in the cache. No-op
-        // unless WHATSAPP_CHANNEL_JID is set (checked inside runWhatsAppDigest).
+        // WhatsApp Channel post (2 jobs) — daily at 08:00 UTC, after
+        // the 06:00 scrape. No-op unless WHATSAPP_CHANNEL_JID is set (checked
+        // inside runWhatsAppDigest).
         cron.schedule('0 8 * * *', async () => {
             console.log('[Cron] Running WhatsApp digest...');
             try {

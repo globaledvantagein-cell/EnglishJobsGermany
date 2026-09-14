@@ -3,60 +3,48 @@
  */
 
 const SITE_HOST = 'englishjobsgermany.com';
-const JOBS_PER_MESSAGE = 10;
-const DIVIDER = '━━━━━━━━━━━━━━━';
+const HEAVY_DIVIDER = '━━━━━━━━━━━━━━━━━━━━';
+const LIGHT_DIVIDER = '─────────────────────';
 
 function jobUrl(job) {
-    return `${SITE_HOST}/jobs/${job._id}`;
+    return `https://${SITE_HOST}/jobs/${job._id}`;
 }
 
-function jobLine(job) {
-    const company = job.Company || 'Unknown company';
-    const location = job.Location || 'Germany';
-    return `🏢 ${company} · 📍 ${location}`;
-}
-
-function chunk(arr, size) {
-    const out = [];
-    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-    return out;
+function jobBlock(job, n) {
+    return [
+        `*${n}. ${job.JobTitle || 'Untitled role'}*`,
+        `📂 ${job.Category || 'Other'}`,
+        `📍 ${job.Location || 'Germany'}`,
+        `🏢 ${job.Company || 'Unknown company'}`,
+        `🔗 ${jobUrl(job)}`,
+    ].join('\n');
 }
 
 /**
- * Build the daily digest post(s).
+ * Build a channel post featuring exactly two jobs.
  *
- * @param {object[]} jobs
- * @returns {string[]} one string per message, at most 10 jobs each. Empty
- *   array when there are no jobs.
+ * @param {object} job1
+ * @param {object} job2
+ * @returns {string}
  */
-export function formatJobDigest(jobs) {
-    if (!Array.isArray(jobs) || jobs.length === 0) return [];
+export function formatWhatsAppPost(job1, job2) {
+    if (!job1 || !job2) throw new Error('formatWhatsAppPost requires exactly 2 jobs');
 
-    const total = jobs.length;
-    const chunks = chunk(jobs, JOBS_PER_MESSAGE);
-
-    return chunks.map((group, chunkIdx) => {
-        const offset = chunkIdx * JOBS_PER_MESSAGE;
-        const header = chunks.length > 1
-            ? `🔵 ${total} New Jobs Today (${chunkIdx + 1}/${chunks.length})`
-            : `🔵 ${total} New Jobs Today`;
-
-        const entries = group.map((job, i) =>
-            `${offset + i + 1}. ${job.JobTitle || 'Untitled role'}\n${jobLine(job)}\n🔗 ${jobUrl(job)}`
-        ).join('\n\n');
-
-        return [
-            header,
-            '',
-            DIVIDER,
-            '',
-            entries,
-            '',
-            DIVIDER,
-            '',
-            `Browse all jobs → ${SITE_HOST}`,
-        ].join('\n');
-    });
+    return [
+        '🟢 *English Jobs Germany*',
+        '',
+        HEAVY_DIVIDER,
+        '',
+        jobBlock(job1, 1),
+        '',
+        LIGHT_DIVIDER,
+        '',
+        jobBlock(job2, 2),
+        '',
+        HEAVY_DIVIDER,
+        '',
+        `For more jobs in Germany where German is not a mandatory requirement, visit 👉 ${SITE_HOST}`,
+    ].join('\n');
 }
 
 /**
@@ -69,7 +57,7 @@ export function formatSingleJob(job) {
         '🆕 New Job Alert',
         '',
         job.JobTitle || 'Untitled role',
-        jobLine(job),
+        `🏢 ${job.Company || 'Unknown company'} · 📍 ${job.Location || 'Germany'}`,
     ];
     if (job.Category) lines.push(`💼 ${job.Category}`);
     lines.push('', `Apply → ${jobUrl(job)}`);

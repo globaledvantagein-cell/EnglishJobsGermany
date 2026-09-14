@@ -1,162 +1,204 @@
 /**
- * Daily WhatsApp Channel digest.
+ * WhatsApp Channel post.
  *
- * Runs 08:00 UTC (one hour after the 06:00 scrape) and posts every job that
- * entered the caches in the look-back window to the WhatsApp channel via
- * WuzAPI.
+ * Runs every 2nd day at 08:00 UTC and posts exactly 2 jobs to the WhatsApp
+ * channel via WuzAPI. Jobs are picked at random from the active German jobs
+ * (remote jobs excluded), preferring two different categories and weighting
+ * jobs posted in the last 30 days 3x. Sent jobs are tracked in the
+ * `whatsappSentJobs` collection so nothing repeats until the pool is cycled.
  *
  * Gated entirely on WHATSAPP_CHANNEL_JID. Unset, this is a no-op.
  *
  * CLI flags (for testing):
- *   --dry-run     Format and print the messages, do not send.
- *   --days=<n>    Look-back window in days (default 1).
+ *   --dry-run     Pick and print the post, do not send or record it.
  *
  * Usage:
  *   node src/whatsapp/digest.js --dry-run
- *   node src/whatsapp/digest.js --days=3
+ *   node src/whatsapp/digest.js
  */
+import { randomBytes } from 'node:crypto';
 import { WHATSAPP_CHANNEL_JID } from '../env.js';
 import { isWuzAPIConnected, sendTextToChannel } from './client.js';
-import { formatJobDigest } from './formatter.js';
+import { formatWhatsAppPost } from './formatter.js';
 
 const LOG = '[WhatsApp]';
+const SENT_COLLECTION = 'whatsappSentJobs';
+// Reset before every job has been sent: some sent IDs belong to jobs that
+// have since been removed, so 100% of the active pool may never be reached.
+const RESET_THRESHOLD = 0.8;
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
-/** Best-effort "when did this job appear": createdAt first, PostedDate as fallback. */
-function jobTimestamp(job) {
-    for (const v of [job.createdAt, job.PostedDate]) {
-        if (!v) continue;
-        const t = new Date(v).getTime();
-        if (!Number.isNaN(t)) return t;
-    }
-    return null;
+// ─── Sent-job tracking ────────────────────────────────────────────────────
+// Schema: { jobId: String (unique), sentAt: Date, postId: String }
+
+async function ensureSentIndex(db) {
+    await db.collection(SENT_COLLECTION).createIndex({ jobId: 1 }, { unique: true }).catch(() => {});
 }
 
-function sortNewestFirst(jobs) {
-    return [...jobs].sort((a, b) => (jobTimestamp(b) ?? 0) - (jobTimestamp(a) ?? 0));
+/** @returns {Promise<Set<string>>} every jobId already posted this cycle. */
+export async function getAlreadySentJobIds(db) {
+    const docs = await db.collection(SENT_COLLECTION)
+        .find({}, { projection: { _id: 0, jobId: 1 } })
+        .toArray();
+    return new Set(docs.map(d => d.jobId));
+}
+
+/** Record the jobs of one post, sharing a random postId. */
+export async function markJobsAsSent(db, jobIds) {
+    if (!jobIds.length) return;
+    await ensureSentIndex(db);
+    const sentAt = new Date();
+    const postId = randomBytes(8).toString('hex');
+    // Upsert rather than insert so a stray duplicate cannot fail the write.
+    await db.collection(SENT_COLLECTION).bulkWrite(jobIds.map(id => ({
+        updateOne: {
+            filter: { jobId: String(id) },
+            update: { $set: { jobId: String(id), sentAt, postId } },
+            upsert: true,
+        },
+    })), { ordered: false });
+}
+
+/** Clear the tracking so the next post starts a fresh cycle. */
+export async function resetSentTracking(db) {
+    await db.collection(SENT_COLLECTION).deleteMany({});
+}
+
+// ─── Selection ────────────────────────────────────────────────────────────
+
+function weightedRandomPick(jobs) {
+    const now = Date.now();
+    const weighted = jobs.map(j => ({
+        job: j,
+        weight: (now - new Date(j.PostedDate).getTime()) < THIRTY_DAYS_MS ? 3 : 1,
+    }));
+    const totalWeight = weighted.reduce((sum, w) => sum + w.weight, 0);
+    let random = Math.random() * totalWeight;
+    for (const w of weighted) {
+        random -= w.weight;
+        if (random <= 0) return w.job;
+    }
+    return weighted[weighted.length - 1].job;
+}
+
+function shuffle(arr) {
+    const out = [...arr];
+    for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
 }
 
 /**
- * Collect jobs from both caches newer than `since`. Each cache is read
- * defensively: if the German cache is not initialised (e.g. a CLI run) we
- * fall back to Mongo for that source rather than failing the whole digest.
+ * Pick 2 jobs: one each from 2 random categories when the pool spans at
+ * least 2, otherwise 2 distinct jobs from the single remaining category.
+ * @param {object[]} pool at least 2 jobs
+ * @returns {[object, object]}
  */
-async function collectNewJobs(since) {
-    const cache = await import('../cache/index.js');
-    const seen = new Set();
-    const out = [];
+function pickTwoJobs(pool) {
+    const byCategory = new Map();
+    for (const job of pool) {
+        const cat = job.Category || 'Other';
+        if (!byCategory.has(cat)) byCategory.set(cat, []);
+        byCategory.get(cat).push(job);
+    }
 
-    const take = (jobs) => {
-        for (const job of jobs) {
-            const key = String(job._id ?? job.JobID);
-            if (seen.has(key)) continue;
-            const t = jobTimestamp(job);
-            if (t === null || t < since) continue;
-            seen.add(key);
-            out.push(job);
-        }
-    };
+    if (byCategory.size >= 2) {
+        const [catA, catB] = shuffle([...byCategory.keys()]);
+        return [weightedRandomPick(byCategory.get(catA)), weightedRandomPick(byCategory.get(catB))];
+    }
 
-    // German jobs
+    const first = weightedRandomPick(pool);
+    const second = weightedRandomPick(pool.filter(j => j !== first));
+    return [first, second];
+}
+
+// ─── Job loading ──────────────────────────────────────────────────────────
+
+/**
+ * Active German jobs (no remote jobs). Falls back to Mongo when the cache is
+ * not initialised, e.g. a CLI run.
+ */
+async function loadActiveJobs(db) {
     try {
-        take(cache.getAllJobs());
+        const { getAllJobs } = await import('../cache/index.js');
+        return getAllJobs();
     } catch (err) {
         console.warn(`${LOG} jobs cache unavailable (${err.message}), reading Mongo directly`);
-        const { connectToDb } = await import('../db/connection.js');
-        const db = await connectToDb();
-        take(await db.collection('jobs')
+        return db.collection('jobs')
             .find({ Status: 'active' }, { projection: { Description: 0, DescriptionHtml: 0 } })
-            .toArray());
+            .toArray();
     }
-
-    // Remote jobs
-    try {
-        take(cache.getAllRemoteJobs());
-    } catch (err) {
-        console.warn(`${LOG} remote cache unavailable (${err.message}), skipping remote jobs`);
-    }
-
-    return sortNewestFirst(out);
 }
 
+// ─── Entry point ──────────────────────────────────────────────────────────
+
 /**
- * @param {{ dryRun?: boolean, days?: number }} opts
- * @returns {Promise<{ jobs: number, messages: number, sent: number, failed: number, skipped?: string }>}
+ * @param {{ dryRun?: boolean }} opts
+ * @returns {Promise<{ sent: boolean, jobIds?: string[], skipped?: string, error?: string, dryRun?: boolean }>}
  */
 export async function runWhatsAppDigest(opts = {}) {
-    const { dryRun = false, days = 1 } = opts;
+    const { dryRun = false } = opts;
+
+    if (!dryRun && !(await isWuzAPIConnected())) {
+        console.log(`${LOG} WuzAPI not connected, skipping post`);
+        return { sent: false, skipped: 'not-connected' };
+    }
 
     if (!WHATSAPP_CHANNEL_JID) {
         console.log(`${LOG} No channel JID configured, skipping`);
-        return { jobs: 0, messages: 0, sent: 0, failed: 0, skipped: 'no-jid' };
+        return { sent: false, skipped: 'no-jid' };
     }
 
-    if (!dryRun && !(await isWuzAPIConnected())) {
-        console.log(`${LOG} WuzAPI not connected, skipping digest`);
-        return { jobs: 0, messages: 0, sent: 0, failed: 0, skipped: 'not-connected' };
+    const { connectToDb } = await import('../db/connection.js');
+    const db = await connectToDb();
+
+    const jobs = (await loadActiveJobs(db)).filter(j => j && j._id);
+    if (jobs.length < 2) {
+        console.log(`${LOG} Fewer than 2 active jobs, skipping`);
+        return { sent: false, skipped: 'no-jobs' };
     }
 
-    const since = Date.now() - days * 24 * 60 * 60 * 1000;
-    const newJobs = await collectNewJobs(since);
+    const sentIds = await getAlreadySentJobIds(db);
+    let unsent = jobs.filter(j => !sentIds.has(String(j._id)));
 
-    if (newJobs.length === 0) {
-        console.log(`${LOG} No new jobs in last ${days === 1 ? '24h' : `${days} days`}, skipping`);
-        return { jobs: 0, messages: 0, sent: 0, failed: 0, skipped: 'no-jobs' };
+    if (unsent.length < 2 || sentIds.size >= jobs.length * RESET_THRESHOLD) {
+        console.log(`${LOG} ${sentIds.size}/${jobs.length} jobs already sent, resetting cycle`);
+        if (!dryRun) await resetSentTracking(db);
+        unsent = jobs;
     }
 
-    const messages = formatJobDigest(newJobs);
+    const [job1, job2] = pickTwoJobs(unsent);
+    const message = formatWhatsAppPost(job1, job2);
+    const jobIds = [String(job1._id), String(job2._id)];
 
     if (dryRun) {
-        console.log(`${LOG} DRY RUN: ${newJobs.length} job(s) in ${messages.length} message(s) WOULD be sent:\n`);
-        messages.forEach((m, i) => {
-            console.log(`── message ${i + 1}/${messages.length} ──────────────────────`);
-            console.log(m);
-            console.log('');
-        });
-        return { jobs: newJobs.length, messages: messages.length, sent: 0, failed: 0, dryRun: true };
+        console.log(`${LOG} DRY RUN: post WOULD be sent (${unsent.length} unsent jobs in pool):\n`);
+        console.log(message);
+        return { sent: false, jobIds, dryRun: true };
     }
 
-    let sent = 0;
-    let failed = 0;
-    for (let i = 0; i < messages.length; i++) {
-        try {
-            const result = await sendTextToChannel(messages[i]);
-            if (result.success) {
-                sent++;
-            } else {
-                failed++;
-                console.error(`${LOG} message ${i + 1}/${messages.length} failed: ${result.error}`);
-            }
-        } catch (err) {
-            // sendTextToChannel never throws, but stay defensive: one bad
-            // chunk must not abort the rest.
-            failed++;
-            console.error(`${LOG} message ${i + 1}/${messages.length} threw: ${err?.message || err}`);
-        }
+    const result = await sendTextToChannel(message);
+    if (!result.success) {
+        // Not recorded as sent, so these jobs stay eligible for the next run.
+        console.error(`${LOG} Post failed: ${result.error}`);
+        return { sent: false, jobIds, error: result.error };
     }
 
-    console.log(`${LOG} Digest sent: ${newJobs.length} jobs in ${sent} messages` +
-        (failed ? ` (${failed} failed)` : ''));
-
-    return { jobs: newJobs.length, messages: messages.length, sent, failed };
+    await markJobsAsSent(db, jobIds);
+    console.log(`${LOG} Post sent: ${job1.JobTitle} + ${job2.JobTitle}`);
+    return { sent: true, jobIds };
 }
 
-// ─── CLI entry: `node src/whatsapp/digest.js [--dry-run] [--days=N]` ──────
-function parseArgs() {
-    const flags = { dryRun: false, days: 1 };
-    for (const a of process.argv.slice(2)) {
-        if (a === '--dry-run') flags.dryRun = true;
-        else if (a.startsWith('--days=')) flags.days = Number(a.slice('--days='.length)) || 1;
-    }
-    return flags;
-}
-
+// ─── CLI entry: `node src/whatsapp/digest.js [--dry-run]` ─────────────────
 const thisFile = new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/i, '$1');
 const entryFile = process.argv[1]?.replace(/\\/g, '/');
 const isCli = thisFile === entryFile || thisFile === '/' + entryFile;
 
 if (isCli) {
     const { client: mongoClient } = await import('../db/connection.js');
-    runWhatsAppDigest(parseArgs())
+    runWhatsAppDigest({ dryRun: process.argv.includes('--dry-run') })
         .then(() => mongoClient.close())
         .then(() => process.exit(0))
         .catch(err => {
