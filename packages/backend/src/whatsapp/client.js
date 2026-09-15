@@ -1,103 +1,67 @@
 /**
- * Thin HTTP client for WuzAPI (https://github.com/asternic/wuzapi).
+ * WhatsApp Channel client backed by the wacli CLI.
  *
- * WuzAPI runs as a separate PM2 process (default localhost:8080) and holds the
- * WhatsApp session. This module only talks to its REST API. Every function
- * swallows network errors and reports them via the return value, so a dead
- * WuzAPI can never crash the API server or a cron run.
+ * wacli is a plain CLI (no daemon, no port) that holds the WhatsApp session on
+ * disk and accepts channel JIDs natively. Every function swallows errors and
+ * reports them via the return value, so a broken wacli can never crash the API
+ * server or a cron run.
  */
-import { WUZAPI_URL, WUZAPI_TOKEN, WHATSAPP_CHANNEL_JID } from '../env.js';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { WACLI_PATH, WHATSAPP_CHANNEL_JID } from '../env.js';
 
-const WUZAPI_BASE = WUZAPI_URL;
-const CHANNEL_JID = WHATSAPP_CHANNEL_JID; // e.g. '120363171744447809@newsletter'
-
-const REQUEST_TIMEOUT_MS = 15_000;
-
-function headers() {
-    return {
-        'Authorization': WUZAPI_TOKEN,
-        'Content-Type': 'application/json',
-    };
-}
+const execFileAsync = promisify(execFile);
+const LOG = '[WhatsApp]';
 
 /**
- * POST a JSON body to a WuzAPI endpoint. Returns { success, error?, data? }.
- * Never throws.
+ * Send a text message to the WhatsApp Channel via wacli CLI.
+ *
+ * Arguments are passed straight to the binary (no shell), so quotes, backticks,
+ * `$` and real newlines in the message need no escaping.
+ *
+ * @param {string} text - The message body
+ * @returns {Promise<{success: boolean, error?: string}>}
  */
-async function post(path, body) {
+export async function sendTextToChannel(text) {
+    if (!WHATSAPP_CHANNEL_JID) {
+        console.warn(`${LOG} No channel JID configured`);
+        return { success: false, error: 'no-jid' };
+    }
+
     try {
-        const res = await fetch(`${WUZAPI_BASE}${path}`, {
-            method: 'POST',
-            headers: headers(),
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        });
+        const { stderr } = await execFileAsync(
+            WACLI_PATH,
+            ['send', 'text', '--to', WHATSAPP_CHANNEL_JID, '--message', text],
+            { timeout: 30_000 },
+        );
 
-        const text = await res.text();
-        let data = null;
-        try { data = text ? JSON.parse(text) : null; } catch { /* non-JSON body */ }
-
-        if (!res.ok) {
-            const error = data?.error || `HTTP ${res.status}${text ? `: ${text.slice(0, 200)}` : ''}`;
-            console.error(`[WhatsApp] ${path} failed: ${error}`);
-            return { success: false, error };
+        if (stderr && stderr.toLowerCase().includes('error')) {
+            console.error(`${LOG} wacli stderr: ${stderr}`);
+            return { success: false, error: stderr.trim() };
         }
 
-        // WuzAPI wraps responses as { code, success, data }. Honour its own flag.
-        if (data && data.success === false) {
-            const error = data.error || 'WuzAPI reported failure';
-            console.error(`[WhatsApp] ${path} failed: ${error}`);
-            return { success: false, error };
-        }
-
-        return { success: true, data: data?.data ?? data };
+        console.log(`${LOG} Message sent via wacli`);
+        return { success: true };
     } catch (err) {
-        const error = err?.name === 'TimeoutError' ? 'request timed out' : (err?.message || String(err));
-        console.error(`[WhatsApp] ${path} unreachable: ${error}`);
+        // Non-zero exit, timeout, or binary missing. Prefer wacli's own output.
+        const error = (err.stderr || '').trim() || err.message;
+        console.error(`${LOG} wacli exec failed: ${error}`);
         return { success: false, error };
     }
 }
 
 /**
- * Send a plain-text message to the configured channel.
- * @param {string} text
- * @returns {Promise<{ success: boolean, error?: string }>}
- */
-export async function sendTextToChannel(text) {
-    if (!CHANNEL_JID) return { success: false, error: 'WHATSAPP_CHANNEL_JID not configured' };
-    return post('/chat/send/text', { Phone: CHANNEL_JID, Body: text });
-}
-
-/**
- * Send an image (by URL) with a caption to the configured channel.
- * @param {string} imageUrl
- * @param {string} caption
- * @returns {Promise<{ success: boolean, error?: string }>}
- */
-export async function sendImageToChannel(imageUrl, caption) {
-    if (!CHANNEL_JID) return { success: false, error: 'WHATSAPP_CHANNEL_JID not configured' };
-    return post('/chat/send/image', { Phone: CHANNEL_JID, Image: imageUrl, Caption: caption });
-}
-
-/**
- * True when WuzAPI is reachable AND its WhatsApp session is connected.
- * False on any error.
+ * Check if wacli is authenticated and connected.
+ * Name kept for digest.js compatibility.
+ * @returns {Promise<boolean>}
  */
 export async function isWuzAPIConnected() {
     try {
-        const res = await fetch(`${WUZAPI_BASE}/session/status`, {
-            method: 'GET',
-            headers: headers(),
-            signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        });
-        if (!res.ok) return false;
-        const json = await res.json();
-        // WuzAPI returns { code, data: { Connected, LoggedIn }, success }.
-        // Accept either the wrapped or a flat shape.
-        const status = json?.data ?? json;
-        return status?.Connected === true;
+        const { stdout } = await execFileAsync(WACLI_PATH, ['doctor'], { timeout: 10_000 });
+        const out = stdout.toLowerCase();
+        return !out.includes('not connected') && !out.includes('not paired');
     } catch (err) {
-        console.warn(`[WhatsApp] status check failed: ${err?.message || err}`);
+        console.warn(`${LOG} wacli doctor failed: ${err.message}`);
         return false;
     }
 }

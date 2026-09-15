@@ -28,7 +28,8 @@ import { softVerifyToken, attachPremiumStatus } from '../../middleware/authMiddl
 import { toTeaser, toPublicJob } from './helpers.js';
 import { autoSuggest } from '../../cache/searchIndex.js';
 import { StripHtml } from '../../utils/htmlUtils.js';
-import { ANONYMOUS_VIEW_LIMIT } from '../../env.js';
+import { ANONYMOUS_VIEW_LIMIT, SSR_API_TOKEN } from '../../env.js';
+import { timingSafeEqual } from 'node:crypto';
 import { Analytics } from '../../models/analyticsModel.js';
 
 // Per-week JD view allowance for signed-up free users (anonymous visitors use
@@ -44,6 +45,15 @@ const ADVANCED_SALARY_FILTERS = ['salaryMin', 'salaryMax'];
 function buildDescriptionPreview(job) {
     const plain = StripHtml(job?.Description || job?.DescriptionHtml || '');
     return `${plain.slice(0, 150)}...`;
+}
+
+// True only when the request carries the shared SSR token (the Next.js server).
+function hasSsrToken(req) {
+    const sent = req.get('x-ssr-token');
+    if (!SSR_API_TOKEN || typeof sent !== 'string') return false;
+    const a = Buffer.from(sent);
+    const b = Buffer.from(SSR_API_TOKEN);
+    return a.length === b.length && timingSafeEqual(a, b);
 }
 
 // Strip advanced filters for non-premium users. Returns the
@@ -270,11 +280,41 @@ export function attachPublicReadRoutes(router) {
                 });
             }
 
+            // Views used including this one — sent back so the job page can
+            // show "N of M free job views left" before the gate ever appears.
+            const alreadyViewed = (visitor.jobsViewedSet || []).includes(jobIdString);
             await recordJobView(visitor._id, jobIdString);
-            return res.status(200).json({ gated: false, job: toPublicJob(job) });
+            const used = (visitor.viewCount || 0) + (alreadyViewed ? 0 : 1);
+            return res.status(200).json({
+                gated: false,
+                job: toPublicJob(job),
+                usage: { used, limit: ANONYMOUS_VIEW_LIMIT },
+            });
 
         } catch (error) {
             console.error('[Jobs/full] Error:', error);
+            res.status(500).json({ error: 'Failed to load job' });
+        }
+    });
+
+    // ─── SERVER-RENDER DETAIL ENDPOINT (Next.js only) ─────────────────
+    // The full public job with NO visitor metering, for the server-rendered
+    // /jobs/:id page. That HTML is identical for everyone and cached (ISR), so
+    // it must not depend on who is asking; the per-visitor gate is applied in
+    // the browser via /:id/full. Locked to the shared SSR_API_TOKEN so it can't
+    // be used to read past the gate. A bad/missing token is a 403 (not a 404)
+    // so a misconfigured frontend errors loudly instead of caching "not found".
+    router.get('/:id/public', async (req, res) => {
+        if (!hasSsrToken(req)) return res.status(403).json({ error: 'Forbidden' });
+        try {
+            const job = await findJobByIdOrJobID(req.params.id);
+            if (!job || job.Status !== 'active' || job.GermanRequired === true) {
+                return res.status(404).json({ error: 'Job not found' });
+            }
+            res.set('Cache-Control', 'private, no-store');
+            return res.status(200).json({ job: toPublicJob(job) });
+        } catch (error) {
+            console.error('[Jobs/public] Error:', error);
             res.status(500).json({ error: 'Failed to load job' });
         }
     });

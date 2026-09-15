@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { fetchJobFull, fetchJobs, fetchRelatedJobs, SITE_URL } from '@/lib/serverApi';
+import { fetchJobPage, fetchJobs, fetchRelatedJobs, SITE_URL } from '@/lib/serverApi';
 import { categorySlug } from '@/utils/categorize';
 import { findCityByLocation } from '@/data/cities';
 import JobSharePage from '@/page-components/JobSharePage';
@@ -9,7 +9,17 @@ import JsonLd, { jobPostingJsonLd } from '@/components/seo/JsonLd';
 import { brandTitle } from '@/lib/seoTitle';
 import { alternatesFor } from '@/lib/seoAlternates';
 
-export const dynamic = 'force-dynamic';
+// ISR: the server HTML is the same for every visitor (the full job; gating is
+// applied per visitor in the browser), so it's cached and rebuilt in the
+// background at most every 10 minutes instead of on every request.
+// generateStaticParams returning [] is what enables on-demand ISR for ids that
+// weren't built at deploy time.
+export const revalidate = 600;
+const JOB_PAGE_REVALIDATE = 600;
+
+export function generateStaticParams() {
+  return [];
+}
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -31,8 +41,8 @@ const linkStyle = { color: 'var(--primary)', fontWeight: 600, textDecoration: 'n
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params;
-  const res = await fetchJobFull(id);
-  const job = res?.job || res?.teaser;
+  const res = await fetchJobPage(id, JOB_PAGE_REVALIDATE);
+  const job = res?.job;
   if (!job) {
     // Expired/removed job. The page below also calls notFound(); this keeps the
     // response out of the index either way.
@@ -77,12 +87,12 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 // JSON-LD (Google for Jobs / AI answer-engine eligibility).
 export default async function JobDetailRoute({ params }: Params) {
   const { id } = await params;
-  const res = await fetchJobFull(id);
-  // Missing or inactive job → the backend returns null (non-2xx). Return a real
-  // HTTP 404 (renders not-found.tsx) instead of a soft-404 that wastes crawl
-  // budget. A gated-but-valid job (res.teaser only) is NOT a 404.
-  if (!res || (!res.job && !res.teaser)) notFound();
-  const job = res.job || res.teaser;
+  const res = await fetchJobPage(id, JOB_PAGE_REVALIDATE);
+  // Missing or inactive job → a real 404 (renders not-found.tsx) instead of a
+  // soft-404 that wastes crawl budget. Backend errors throw inside fetchJobPage,
+  // so a blip is never cached as "not found".
+  if (!res) notFound();
+  const job = res.job;
 
   // Internal link mesh. Job pages are by far the biggest indexed surface on the
   // site (~4.3k URLs), so these links are what pass equity down to the 28
@@ -93,8 +103,8 @@ export default async function JobDetailRoute({ params }: Params) {
   // no DB, and they run in parallel with each other.
   const city = findCityByLocation(job?.Location);
   const [related, cityStats] = await Promise.all([
-    fetchRelatedJobs(id, 5),
-    city ? fetchJobs({ search: city.slug, limit: 1 }) : Promise.resolve(null),
+    fetchRelatedJobs(id, 5, JOB_PAGE_REVALIDATE),
+    city ? fetchJobs({ search: city.slug, limit: 1, revalidate: JOB_PAGE_REVALIDATE }) : Promise.resolve(null),
   ]);
   const category = related.category || job?.Category || null;
   const cityCount = cityStats?.totalJobs ?? 0;
@@ -153,9 +163,11 @@ export default async function JobDetailRoute({ params }: Params) {
           </ol>
         </nav>
       )}
-      {/* Seed the client page with the full server-fetched job (crawlable HTML +
-          instant first paint); the client re-fetches to apply auth-aware gating. */}
-      <JobSharePage initialJob={res.job ?? null} />
+      {/* Seed the client page with the full job so it paints instantly (no
+          skeleton) and crawlers see the description. JobSharePage then checks
+          this visitor's allowance in the browser and swaps in the gate if
+          needed. A teaser (no SSR_API_TOKEN) has no description, so no seed. */}
+      <JobSharePage initialJob={res.full ? job : null} />
 
       {job && (category || city || related.jobs.length > 0) && (
         <div

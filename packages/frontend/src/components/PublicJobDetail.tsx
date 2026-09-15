@@ -46,9 +46,9 @@ export default function PublicJobDetail({ job, onApplyTracked, onAuthRequired, o
     });
   }, [job._id, job.JobTitle, job.Company, job.Category, job.filterWorkplace, job.filterExperience]);
 
-  const shareUrl = `${window.location.origin}/jobs/${job._id}`;
-
   const handleShare = async () => {
+    // Built on click, not during render — this component is server-rendered.
+    const shareUrl = `${window.location.origin}/jobs/${job._id}`;
     const shareData = { title: `${job.JobTitle} at ${job.Company}`, url: shareUrl };
     try {
       if (navigator.share && navigator.canShare?.(shareData)) {

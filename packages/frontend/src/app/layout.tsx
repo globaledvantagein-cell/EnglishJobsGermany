@@ -114,8 +114,9 @@ export default function RootLayout({
         <JsonLd data={organizationJsonLd} />
         <JsonLd data={websiteJsonLd} />
         <Providers>
-          {/* Layout (site chrome) reads useSearchParams via the router shim,
-              which requires a Suspense boundary during prerender. */}
+          {/* Safety net only. Layout isolates its own useSearchParams readers
+              in inner Suspense boundaries, so pages render into the server
+              HTML; this outer boundary would otherwise blank the whole body. */}
           <Suspense fallback={null}>
             <Layout>{children}</Layout>
           </Suspense>

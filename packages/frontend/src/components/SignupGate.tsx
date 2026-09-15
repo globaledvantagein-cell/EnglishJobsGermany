@@ -12,18 +12,18 @@ interface Props {
   };
   /** Called after successful auth so the parent can refetch the job */
   onAuthSuccess: () => void;
+  /** Shows a "Back to the job" link — for gates the user opened, not limit gates */
+  onBack?: () => void;
 }
 
 /**
  * Shown when /api/jobs/:id/full returns { gated: true }.
  *
- * Deliberately does NOT show:
- *   - View counter ("17/20 left")
- *   - Remaining count
- *   - The limit number
- * The gate triggers silently. Users see the value prop, not the rule.
+ * The remaining-views count is shown BEFORE this point, on the job page itself
+ * (ViewAllowanceNotice), so reaching the gate is never a surprise. The gate
+ * itself stays focused on the value prop.
  */
-export default function SignupGate({ teaser, onAuthSuccess }: Props) {
+export default function SignupGate({ teaser, onAuthSuccess, onBack }: Props) {
   return (
     <div
       style={{
@@ -111,6 +111,23 @@ export default function SignupGate({ teaser, onAuthSuccess }: Props) {
       )}
 
       <GoogleAuthButton onSuccess={onAuthSuccess} text="continue_with" />
+
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          style={{
+            marginTop: 16, background: 'none', border: 'none', padding: 4,
+            fontFamily: 'inherit', fontSize: '0.84rem', fontWeight: 600,
+            color: 'var(--text-muted)', cursor: 'pointer',
+            transition: 'color 160ms var(--ease-out-soft)',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+        >
+          Back to the job
+        </button>
+      )}
     </div>
   );
 }

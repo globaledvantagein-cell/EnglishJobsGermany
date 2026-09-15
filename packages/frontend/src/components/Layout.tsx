@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Link, useLocation, useSearchParams } from '@/compat/router';
+import { usePathname } from 'next/navigation';
+import { Link, useSearchParams } from '@/compat/router';
 import { Menu, X, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAppliedJobs } from '../context/AppliedJobsContext';
@@ -21,9 +22,25 @@ import RouteProgress from './RouteProgress';
 import ConnectionBanner from './ConnectionBanner';
 import { ADMIN_LINKS, PUBLIC_LINKS } from './layout/navLinks';
 
-export default function Layout({ children }: { children: ReactNode }) {
-  const loc = useLocation();
+// Reads the URL query, which suspends during prerender. Kept in its own tiny
+// component behind a Suspense boundary so it doesn't push the whole site chrome
+// (and every page inside it) out of the server HTML into client-only rendering.
+function UnsubscribedToastTrigger({ onUnsubscribed }: { onUnsubscribed: () => void }) {
   const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('unsubscribed') === 'true') {
+      onUnsubscribed();
+      searchParams.delete('unsubscribed');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams, onUnsubscribed]);
+  return null;
+}
+
+export default function Layout({ children }: { children: ReactNode }) {
+  // Pathname only — useLocation() also reads the query string, which would
+  // suspend and push the whole layout out of the server HTML.
+  const pathname = usePathname() || '/';
   const { user, logout, isAuthenticated, isAdmin, isPremium } = useAuth();
   const { toggle } = useTheme();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -46,7 +63,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   // (no crown) until hydrated, then reveal the real state.
   const effIsPremium = hydrated ? isPremium : true;
 
-  const hideFeedbackWidget = effIsAdmin || loc.pathname.startsWith('/admin');
+  const hideFeedbackWidget = effIsAdmin || pathname.startsWith('/admin');
 
   // ── "Did you apply?" toast on tab refocus ───────────────────────────────
   const { pendingItems, resolvePending } = useAppliedJobs();
@@ -75,14 +92,10 @@ export default function Layout({ children }: { children: ReactNode }) {
     };
   }, [pendingItems, applyToast]);
 
-  // ── Toast triggers from URL params ──────────────────────────────────────
-  useEffect(() => {
-    if (searchParams.get('unsubscribed') === 'true') {
-      setToast({ message: 'You have been unsubscribed from the weekly digest.', type: 'success' });
-      searchParams.delete('unsubscribed');
-      setSearchParams(searchParams, { replace: true });
-    }
-  }, [searchParams, setSearchParams]);
+  // ── Toast triggers from URL params (see UnsubscribedToastTrigger) ────────
+  const showUnsubscribedToast = useCallback(() => {
+    setToast({ message: 'You have been unsubscribed from the weekly digest.', type: 'success' });
+  }, []);
 
   const closeDrawer = useCallback(() => {
     setDrawerClosing(prev => {
@@ -96,7 +109,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   }, []);
 
   // Close drawer on route change or breakpoint flip
-  useEffect(() => { if (drawerOpen) closeDrawer(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [loc.pathname, isMobileNav]);
+  useEffect(() => { if (drawerOpen) closeDrawer(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [pathname, isMobileNav]);
 
   // Lock body scroll while drawer open
   useEffect(() => {
@@ -111,14 +124,18 @@ export default function Layout({ children }: { children: ReactNode }) {
     apiGet<{ unread?: number }>('/api/feedback/stats')
       .then(data => setUnreadFeedback(data?.unread || 0))
       .catch(() => {});
-  }, [isAdmin, loc.pathname]);
+  }, [isAdmin, pathname]);
 
-  const isActive = useCallback((path: string) => loc.pathname === path, [loc.pathname]);
+  const isActive = useCallback((path: string) => pathname === path, [pathname]);
   const links = useMemo(() => effIsAdmin ? ADMIN_LINKS : PUBLIC_LINKS, [effIsAdmin]);
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <RouteProgress />
+      {/* Both read useSearchParams — isolated so the rest of the page prerenders. */}
+      <Suspense fallback={null}>
+        <RouteProgress />
+        <UnsubscribedToastTrigger onUnsubscribed={showUnsubscribedToast} />
+      </Suspense>
       <nav
         className="nav-blur"
         style={{ position: 'sticky', top: 0, zIndex: 50, borderBottom: '1px solid var(--border)' }}
@@ -245,7 +262,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       {/* Keyed on the path so each route's content runs the enter animation
           once on arrival; the previous page never lingers half-swapped. */}
       <main
-        key={loc.pathname}
+        key={pathname}
         className="page-enter"
         style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
         role="main"

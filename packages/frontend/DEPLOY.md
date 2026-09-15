@@ -20,6 +20,16 @@ NEXT_PUBLIC_GOOGLE_CLIENT_ID=<google oauth client id>
 NEXT_PUBLIC_ENABLE_PROFILE=true
 API_ORIGIN=http://localhost:3000          # Express backend (server-to-server SSR fetches + /api proxy)
 NEXT_PUBLIC_SITE_URL=https://englishjobsgermany.com   # used for canonical / OG / JSON-LD / sitemap
+SSR_API_TOKEN=<same value as the backend's SSR_API_TOKEN>
+```
+
+`SSR_API_TOKEN` must be the **same** random string in the frontend and the
+backend (`packages/backend/.env`). It lets the Next server fetch the full job
+for `/jobs/[id]` (pages are cached for 10 minutes) while visitors are still
+metered in the browser. Generate one with:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 ## Build & run

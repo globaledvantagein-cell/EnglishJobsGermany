@@ -1,7 +1,7 @@
 import JobDetailSkeleton from '@/components/JobDetailSkeleton';
 import { Container } from '@/components/ui';
 
-// Streamed instantly while page.tsx awaits fetchJobFull — without this a new
+// Streamed instantly while page.tsx awaits fetchJobPage on an uncached render — without this a new
 // tab shows a blank page (no shell at all) until the backend responds.
 // Mirrors JobSharePage's outer container so nothing shifts on swap.
 export default function Loading() {

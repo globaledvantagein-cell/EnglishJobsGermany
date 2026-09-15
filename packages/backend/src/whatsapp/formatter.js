@@ -10,12 +10,17 @@ function jobUrl(job) {
     return `https://${SITE_HOST}/jobs/${job._id}`;
 }
 
+/** Swap double quotes and backticks for single quotes before a CLI send. */
+function sanitize(str) {
+    return (str || '').replace(/"/g, "'").replace(/`/g, "'");
+}
+
 function jobBlock(job, n) {
     return [
-        `*${n}. ${job.JobTitle || 'Untitled role'}*`,
-        `📂 ${job.Category || 'Other'}`,
-        `📍 ${job.Location || 'Germany'}`,
-        `🏢 ${job.Company || 'Unknown company'}`,
+        `*${n}. ${sanitize(job.JobTitle) || 'Untitled role'}*`,
+        `📂 ${sanitize(job.Category) || 'Other'}`,
+        `📍 ${sanitize(job.Location) || 'Germany'}`,
+        `🏢 ${sanitize(job.Company) || 'Unknown company'}`,
         `🔗 ${jobUrl(job)}`,
     ].join('\n');
 }

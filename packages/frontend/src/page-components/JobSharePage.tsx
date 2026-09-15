@@ -6,13 +6,16 @@
  * Route:  /jobs/:id
  * URL:    https://englishjobsgermany.com/jobs/6835a3f1c7…
  *
+ * The server passes the full job as `initialJob` (same cached HTML for every
+ * visitor), so the job paints immediately with no skeleton. The browser then
+ * calls /full with this visitor's identity: that meters the view, returns the
+ * remaining allowance (shown via ViewAllowanceNotice), and swaps in the
+ * SignupGate if the visitor is over their limit.
+ *
  * Uses fetchJobDetailCached so repeated opens (friend clicks 10 links)
  * only hit the network once per job. Auth status is checked locally from
  * localStorage — no extra server round-trip to determine if the user is
  * signed in.
- *
- * Gate behaviour is identical to the Dashboard split-view: anonymous users
- * who have exceeded FREE_VIEW_LIMIT see a teaser + SignupGate.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from '@/compat/router';
@@ -22,22 +25,24 @@ import { fetchJobDetailCached, ApiError } from '../utils/jobApi';
 import PublicJobDetail from '../components/PublicJobDetail';
 import JobDetailSkeleton from '../components/JobDetailSkeleton';
 import SignupGate from '../components/SignupGate';
+import ViewAllowanceNotice from '../components/ViewAllowanceNotice';
 import { Container } from '../components/ui';
 import { ErrorState, classifyError } from '../components/ui/ErrorState';
 import { BRAND } from '../theme/brand';
-import type { IJob, GatedTeaser } from '../types';
+import type { IJob, GatedTeaser, GateUsage } from '../types';
 
 export default function JobSharePage({ initialJob = null }: { initialJob?: IJob | null } = {}) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isPremium, isLoading: authLoading } = useAuth();
 
   // Seed from the server-fetched job so the first paint (and crawler HTML) shows
-  // content immediately; the client fetch below refines it for the logged-in
-  // user's gating. Only start in the loading state when we have no seed.
+  // content immediately; the client fetch below applies this visitor's gating.
+  // Only start in the loading state when we have no seed.
   const [job, setJob] = useState<IJob | null>(initialJob);
   const [gated, setGated] = useState(false);
   const [teaser, setTeaser] = useState<GatedTeaser | null>(null);
+  const [usage, setUsage] = useState<GateUsage | null>(null);
   const [loading, setLoading] = useState(!initialJob);
   // 'notfound' → the job is gone (404-ish); anything else is a transport /
   // server failure that deserves a retry rather than a dead end.
@@ -54,10 +59,12 @@ export default function JobSharePage({ initialJob = null }: { initialJob?: IJob 
       if (res.gated) {
         setGated(true);
         setTeaser(res.teaser);
+        setUsage(null);
         setJob(null);
       } else {
         setGated(false);
         setTeaser(null);
+        setUsage('usage' in res ? res.usage : null);
         const fullJob = res.job as IJob;
         setJob(fullJob);
         document.title = `${fullJob.JobTitle} at ${fullJob.Company} · ${BRAND.appName}`;
@@ -74,7 +81,6 @@ export default function JobSharePage({ initialJob = null }: { initialJob?: IJob 
   }, [id, isAuthenticated, authLoading, initialJob]);
 
   useEffect(() => {
-    document.title = BRAND.appName;
     fetchJob();
   }, [fetchJob]);
 
@@ -88,8 +94,8 @@ export default function JobSharePage({ initialJob = null }: { initialJob?: IJob 
   // ── Render states ──────────────────────────────────────────────────────
 
   const renderContent = () => {
-    // 1. Still loading
-    if (loading || authLoading) {
+    // 1. Still loading, with nothing to show yet (no server seed)
+    if (!job && !gated && !error && (loading || authLoading)) {
       return <JobDetailSkeleton />;
     }
 
@@ -153,7 +159,7 @@ export default function JobSharePage({ initialJob = null }: { initialJob?: IJob 
       );
     }
 
-    // 3. Gated (anonymous user over view limit, or Apply clicked without auth)
+    // 3. Gated (over the view limit, or the user opened sign-in themselves)
     if (forceGate || gated) {
       return (
         <div className="page-fade-in">
@@ -167,6 +173,8 @@ export default function JobSharePage({ initialJob = null }: { initialJob?: IJob 
             setGated(false);
             fetchJob();
           }}
+          // Only a gate the user opened can be dismissed; a limit gate can't.
+          onBack={!gated && job ? () => setForceGate(false) : undefined}
         />
         </div>
       );
@@ -176,6 +184,13 @@ export default function JobSharePage({ initialJob = null }: { initialJob?: IJob 
     if (job) {
       return (
         <div className="page-fade-in">
+          {usage && !isPremium && (
+            <ViewAllowanceNotice
+              usage={usage}
+              signedIn={isAuthenticated}
+              onSignIn={() => setForceGate(true)}
+            />
+          )}
           <PublicJobDetail
             job={job}
             onApplyTracked={handleApplyTracked}

@@ -52,10 +52,16 @@ export const FREE_VIEW_LIMIT = Number(process.env.FREE_VIEW_LIMIT) || 20;
 // ANONYMOUS_VIEW_LIMIT: JD views an anonymous (non-signed-up) visitor gets per
 // week before the signup gate. Deliberately lower than FREE_VIEW_LIMIT — the
 // gate on the /:id/full route passes this to shouldGate() for anonymous users,
-// while other callers keep using FREE_VIEW_LIMIT. NEVER expose to client.
+// while other callers keep using FREE_VIEW_LIMIT. Sent to the client as
+// `usage.limit` so job pages can show how many free views are left.
 export const ANONYMOUS_VIEW_LIMIT = Number(process.env.ANONYMOUS_VIEW_LIMIT) || 5;
 export const NEW_VISITOR_RATE_LIMIT_PER_HOUR = Number(process.env.NEW_VISITOR_RATE_LIMIT_PER_HOUR) || 20;
 export const VISITOR_IP_SALT = process.env.VISITOR_IP_SALT;
+// SSR_API_TOKEN: shared secret between the Next.js server and this API. It
+// unlocks GET /api/jobs/:id/public (full job, no visitor metering) so job pages
+// can be server-rendered and cached with the real description. Must match the
+// frontend's SSR_API_TOKEN. Unset → that route is disabled.
+export const SSR_API_TOKEN = process.env.SSR_API_TOKEN || '';
 export const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
 
 // ── Auto-publish confidence bands ─────────────────────────────────────────
@@ -95,12 +101,11 @@ export const BETA_PROMO_CODE = (process.env.BETA_PROMO_CODE || 'BETA2026').toUpp
 // We use the ID-token flow, so no client secret is needed.
 export const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 
-// ── WhatsApp Channel (via WuzAPI) ─────────────────────────────────────────
-// WuzAPI runs as a separate PM2 process and holds the WhatsApp session; this
-// backend only calls its REST API. The whole feature is gated on
+// ── WhatsApp Channel (via wacli) ──────────────────────────────────────────
+// wacli is a CLI (no daemon, no port) that holds the WhatsApp session; this
+// backend shells out to it. The whole feature is gated on
 // WHATSAPP_CHANNEL_JID: leave it empty and the daily digest is a silent no-op.
-export const WUZAPI_URL = process.env.WUZAPI_URL || 'http://localhost:8080';
-export const WUZAPI_TOKEN = process.env.WUZAPI_TOKEN || '';
+export const WACLI_PATH = process.env.WACLI_PATH || '/home/globaledvantagein/go/bin/wacli';
 export const WHATSAPP_CHANNEL_JID = process.env.WHATSAPP_CHANNEL_JID || ''; // e.g. 120363171744447809@newsletter
 
 if (!VISITOR_IP_SALT) {

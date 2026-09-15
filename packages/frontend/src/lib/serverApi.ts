@@ -73,18 +73,48 @@ export interface RelatedJobs {
  * the endpoint returns an empty set rather than an error for an unknown id, so
  * the job page's related block simply doesn't render.
  */
-export async function fetchRelatedJobs(id: string, limit = 5): Promise<RelatedJobs> {
+export async function fetchRelatedJobs(id: string, limit = 5, revalidate?: number): Promise<RelatedJobs> {
   const data = await getJson<RelatedJobs>(
     `/api/jobs/${encodeURIComponent(id)}/related?limit=${limit}`,
+    revalidate,
   );
   return data ?? { category: null, categoryTotal: 0, jobs: [] };
 }
 
-/** GET /api/jobs/:id/full — full job (or gated teaser). Anonymous server request. */
-export async function fetchJobFull(
-  id: string,
-): Promise<{ gated: boolean; job?: IJob; teaser?: IJob } | null> {
-  return getJson(`/api/jobs/${encodeURIComponent(id)}/full`);
+const SSR_API_TOKEN = process.env.SSR_API_TOKEN;
+if (!SSR_API_TOKEN && process.env.NODE_ENV === 'production') {
+  console.warn('[serverApi] SSR_API_TOKEN is not set — /jobs/[id] pages will render the gated teaser (no description).');
+}
+
+export interface JobPageData {
+  job: IJob;
+  /** true = full job with description; false = gated teaser (no token configured). */
+  full: boolean;
+}
+
+/**
+ * The job for the server-rendered /jobs/:id page.
+ *
+ * Uses GET /api/jobs/:id/public, an unmetered route locked to the shared
+ * SSR_API_TOKEN, so the cached HTML carries the full description for everyone.
+ * The per-visitor gate is applied afterwards in the browser (JobSharePage).
+ * Without a token it falls back to the metered /full route (teaser only).
+ *
+ * Returns null only for a real 404 (job gone). Any other failure THROWS, so ISR
+ * keeps serving the last good page instead of caching a "not found".
+ */
+export async function fetchJobPage(id: string, revalidate: number): Promise<JobPageData | null> {
+  const suffix = SSR_API_TOKEN ? 'public' : 'full';
+  const res = await fetch(`${API_ORIGIN}/api/jobs/${encodeURIComponent(id)}/${suffix}`, {
+    headers: SSR_API_TOKEN ? { 'x-ssr-token': SSR_API_TOKEN } : undefined,
+    next: { revalidate },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Job ${id}: API responded ${res.status}`);
+  const data = (await res.json()) as { job?: IJob; teaser?: IJob };
+  if (data.job) return { job: data.job, full: true };
+  if (data.teaser) return { job: data.teaser, full: false };
+  return null;
 }
 
 // ── Career guide ───────────────────────────────────────────────────────────
