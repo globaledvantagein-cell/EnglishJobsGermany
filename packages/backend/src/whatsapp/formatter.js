@@ -35,8 +35,9 @@ function jobBlock(job, n) {
 export function formatWhatsAppPost(job1, job2) {
     if (!job1 || !job2) throw new Error('formatWhatsAppPost requires exactly 2 jobs');
 
+    // Sent as the caption of the logo image, so no emoji marker in the header.
     return [
-        '🟢 *English Jobs Germany*',
+        '*English Jobs Germany*',
         '',
         HEAVY_DIVIDER,
         '',

@@ -2,7 +2,8 @@
  * WhatsApp Channel post.
  *
  * Runs every 2nd day at 08:00 UTC and posts exactly 2 jobs to the WhatsApp
- * channel via WuzAPI. Jobs are picked at random from the active German jobs
+ * channel via wacli, as the logo image with the job list as its caption.
+ * Jobs are picked at random from the active German jobs
  * (remote jobs excluded), preferring two different categories and weighting
  * jobs posted in the last 30 days 3x. Sent jobs are tracked in the
  * `whatsappSentJobs` collection so nothing repeats until the pool is cycled.
@@ -17,11 +18,16 @@
  *   node src/whatsapp/digest.js
  */
 import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { WHATSAPP_CHANNEL_JID } from '../env.js';
-import { isWuzAPIConnected, sendTextToChannel } from './client.js';
+import { isWacliConnected, sendImageToChannel, sendTextToChannel } from './client.js';
 import { formatWhatsAppPost } from './formatter.js';
 
 const LOG = '[WhatsApp]';
+// Copy of frontend/public/apple-touch-icon.png, bundled so the backend can be
+// deployed without the frontend package.
+const LOGO_PATH = fileURLToPath(new URL('./assets/logo.png', import.meta.url));
 const SENT_COLLECTION = 'whatsappSentJobs';
 // Reset before every job has been sent: some sent IDs belong to jobs that
 // have since been removed, so 100% of the active pool may never be reached.
@@ -141,8 +147,8 @@ async function loadActiveJobs(db) {
 export async function runWhatsAppDigest(opts = {}) {
     const { dryRun = false } = opts;
 
-    if (!dryRun && !(await isWuzAPIConnected())) {
-        console.log(`${LOG} WuzAPI not connected, skipping post`);
+    if (!dryRun && !(await isWacliConnected())) {
+        console.log(`${LOG} wacli not connected, skipping post`);
         return { sent: false, skipped: 'not-connected' };
     }
 
@@ -179,7 +185,11 @@ export async function runWhatsAppDigest(opts = {}) {
         return { sent: false, jobIds, dryRun: true };
     }
 
-    const result = await sendTextToChannel(message);
+    // Post as the logo image with the text as its caption; fall back to plain
+    // text if the logo file is missing so a bad deploy never skips a post.
+    const result = existsSync(LOGO_PATH)
+        ? await sendImageToChannel(LOGO_PATH, message)
+        : await sendTextToChannel(message);
     if (!result.success) {
         // Not recorded as sent, so these jobs stay eligible for the next run.
         console.error(`${LOG} Post failed: ${result.error}`);

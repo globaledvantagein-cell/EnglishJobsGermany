@@ -51,11 +51,43 @@ export async function sendTextToChannel(text) {
 }
 
 /**
+ * Send an image file with a caption to the WhatsApp Channel via wacli CLI.
+ * @param {string} imagePath - Absolute path to the image on disk
+ * @param {string} caption - The message body shown under the image
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export async function sendImageToChannel(imagePath, caption) {
+    if (!WHATSAPP_CHANNEL_JID) {
+        console.warn(`${LOG} No channel JID configured`);
+        return { success: false, error: 'no-jid' };
+    }
+
+    try {
+        const { stderr } = await execFileAsync(
+            WACLI_PATH,
+            ['send', 'file', '--to', WHATSAPP_CHANNEL_JID, '--file', imagePath, '--as', 'image', '--caption', caption],
+            { timeout: 60_000 },
+        );
+
+        if (stderr && stderr.toLowerCase().includes('error')) {
+            console.error(`${LOG} wacli stderr: ${stderr}`);
+            return { success: false, error: stderr.trim() };
+        }
+
+        console.log(`${LOG} Image post sent via wacli`);
+        return { success: true };
+    } catch (err) {
+        const error = (err.stderr || '').trim() || err.message;
+        console.error(`${LOG} wacli exec failed: ${error}`);
+        return { success: false, error };
+    }
+}
+
+/**
  * Check if wacli is authenticated and connected.
- * Name kept for digest.js compatibility.
  * @returns {Promise<boolean>}
  */
-export async function isWuzAPIConnected() {
+export async function isWacliConnected() {
     try {
         const { stdout } = await execFileAsync(WACLI_PATH, ['doctor'], { timeout: 10_000 });
         const out = stdout.toLowerCase();

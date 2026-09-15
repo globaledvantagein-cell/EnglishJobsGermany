@@ -44,6 +44,93 @@ const companySiteNames = [
   'jobgether',  // 114 DE / 2991 total
   'extremenetworks',  // 3 DE / 92 total
   'storiogroup',  // 2 DE / 7 total
+  // --- DISCOVERY 2026-09-15 (web search + API verified: >=1 job in Germany) ---
+  'novaspace',  // Added via discovery — 6 DE / 28 total
+  'valiantys',  // Added via discovery — 3 DE / 10 total
+  'quantco-',  // Added via discovery — 2 DE / 16 total
+  'spreetail',  // Added via discovery — 2 DE / 28 total
+  'rover',  // Added via discovery — 2 DE / 27 total
+  'appzen',  // Added via discovery — 1 DE / 21 total
+  // --- DISCOVERY 2026-09-15 (web search + API verified: >=1 job in Germany) ---
+  'alimentiv-2',  // Added via discovery — 6 DE / 39 total
+  'innocraft',  // Added via discovery — 1 DE / 1 total
+  // --- DISCOVERY 2026-09-15 (web search + API verified: >=1 job in Germany) ---
+  'hypersonica-prod',  // Added via discovery — 26 DE / 39 total
+  'netlight',  // Added via discovery — 18 DE / 36 total
+  'vivenu',  // Added via discovery — 15 DE / 30 total
+  'emma-sleep',  // Added via discovery — 13 DE / 66 total
+  'Packmatic',  // Added via discovery — 12 DE / 13 total
+  'yuno',  // Added via discovery — 11 DE / 34 total
+  'impossiblecloud',  // Added via discovery — 10 DE / 11 total
+  'ircagroup',  // Added via discovery — 10 DE / 57 total
+  'doonails',  // Added via discovery — 8 DE / 10 total
+  'apex-ai',  // Added via discovery — 7 DE / 7 total
+  'qwello.eu',  // Added via discovery — 6 DE / 12 total
+  'freiheit-2',  // Added via discovery — 6 DE / 8 total
+  '360learning',  // Added via discovery — 6 DE / 31 total
+  'valpeo.com',  // Added via discovery — 4 DE / 19 total
+  'walkme',  // Added via discovery — 4 DE / 27 total
+  'dilitrust',  // Added via discovery — 4 DE / 25 total
+  'zurichinstruments',  // Added via discovery — 3 DE / 14 total
+  'hophr',  // Added via discovery — 3 DE / 29 total
+  'sonatype',  // Added via discovery — 3 DE / 31 total
+  'unisoninfra',  // Added via discovery — 3 DE / 12 total
+  'doctrine',  // Added via discovery — 3 DE / 33 total
+  'trustyou',  // Added via discovery — 2 DE / 7 total
+  'brafton',  // Added via discovery — 2 DE / 21 total
+  'everbridge',  // Added via discovery — 2 DE / 19 total
+  'valdera',  // Added via discovery — 2 DE / 14 total
+  'global-cxm',  // Added via discovery — 2 DE / 42 total
+  'veepee',  // Added via discovery — 2 DE / 72 total
+  'GurobiOptimization',  // Added via discovery — 2 DE / 11 total
+  'Civitta',  // Added via discovery — 2 DE / 76 total
+  'actian',  // Added via discovery — 1 DE / 12 total
+  'adlook',  // Added via discovery — 1 DE / 28 total
+  'ampeco-global',  // Added via discovery — 1 DE / 10 total
+  'caliza-financial-technologies',  // Added via discovery — 1 DE / 2 total
+  'BTSE',  // Added via discovery — 1 DE / 36 total
+  'bluecatnetworks',  // Added via discovery — 1 DE / 22 total
+  'companial',  // Added via discovery — 1 DE / 10 total
+  'controlup',  // Added via discovery — 1 DE / 11 total
+  'Sprinto',  // Added via discovery — 1 DE / 34 total
+  'duetti',  // Added via discovery — 1 DE / 9 total
+  'bigblue',  // Added via discovery — 1 DE / 36 total
+  'fuellabs',  // Added via discovery — 1 DE / 1 total
+  'ghsmartjobs',  // Added via discovery — 1 DE / 6 total
+  'deltasands',  // Added via discovery — 1 DE / 29 total
+  'firemon',  // Added via discovery — 1 DE / 8 total
+  'economicmodeling',  // Added via discovery — 1 DE / 28 total
+  'capital',  // Added via discovery — 1 DE / 41 total
+  'burga',  // Added via discovery — 1 DE / 38 total
+  'gmo',  // Added via discovery — 1 DE / 14 total
+  'foxitsoftware',  // Added via discovery — 1 DE / 7 total
+  'prilenia',  // Added via discovery — 1 DE / 3 total
+  'diamondfoundry',  // Added via discovery — 1 DE / 45 total
+  'eleks',  // Added via discovery — 1 DE / 22 total
+  'radformation',  // Added via discovery — 1 DE / 5 total
+  'canarytechnologies',  // Added via discovery — 1 DE / 30 total
+  'q-ctrl',  // Added via discovery — 1 DE / 8 total
+  'propellerhead',  // Added via discovery — 1 DE / 10 total
+  'mythic-ai.com',  // Added via discovery — 1 DE / 30 total
+  'theinformationlab',  // Added via discovery — 1 DE / 3 total
+  'apryse',  // Added via discovery — 1 DE / 20 total
+  'Clearer',  // Added via discovery — 1 DE / 2 total
+  'vestiairecollective',  // Added via discovery — 1 DE / 9 total
+  'trendyol',  // Added via discovery — 1 DE / 24 total
+  'equativ',  // Added via discovery — 1 DE / 20 total
+  'Nomagic',  // Added via discovery — 1 DE / 15 total
+  'veo',  // Added via discovery — 1 DE / 16 total
+  'zencore',  // Added via discovery — 1 DE / 22 total
+  'ogury',  // Added via discovery — 1 DE / 22 total
+  'idt',  // Added via discovery — 1 DE / 98 total
+  'unlimit',  // Added via discovery — 1 DE / 52 total
+  'kpler',  // Added via discovery — 1 DE / 67 total
+  'zimperium',  // Added via discovery — 1 DE / 16 total
+  'Fliff',  // Added via discovery — 1 DE / 29 total
+  'wmg',  // Added via discovery — 1 DE / 27 total
+  'sambatv',  // Added via discovery — 1 DE / 57 total
+  'redhorsecorp',  // Added via discovery — 1 DE / 64 total
+  // --- DISCOVERY 2026-09-15 (web search + API verified: >=1 job in Germany) ---
 ];
 
 /**
