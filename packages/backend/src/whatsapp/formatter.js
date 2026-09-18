@@ -33,7 +33,7 @@ export function formatWhatsAppPost(job1, job2) {
     if (!job1 || !job2) throw new Error('formatWhatsAppPost requires exactly 2 jobs');
 
     return [
-        '🟢 *English Jobs Germany*',
+        '*English Jobs Germany*',
         '',
         jobBlock(job1, 1),
         '',
