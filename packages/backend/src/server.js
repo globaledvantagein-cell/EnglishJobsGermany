@@ -145,13 +145,23 @@ app.listen(PORT, async () => {
         // WhatsApp Channel post (2 jobs) — daily at 08:00 UTC, after
         // the 06:00 scrape. No-op unless WHATSAPP_CHANNEL_JID is set (checked
         // inside runWhatsAppDigest).
-        cron.schedule('0 8 * * *', async () => {
-            console.log('[Cron] Running WhatsApp digest...');
+      cron.schedule('0 7 * * *', async () => {
+            console.log('[Cron] Running WhatsApp morning post...');
             try {
                 const { runWhatsAppDigest } = await import('./whatsapp/digest.js');
                 await runWhatsAppDigest();
             } catch (err) {
-                console.error('[WhatsApp] Digest failed:', err);
+                console.error('[WhatsApp] Morning post failed:', err);
+            }
+        }, { timezone: 'UTC' });
+
+        cron.schedule('0 15 * * *', async () => {
+            console.log('[Cron] Running WhatsApp afternoon post...');
+            try {
+                const { runWhatsAppDigest } = await import('./whatsapp/digest.js');
+                await runWhatsAppDigest();
+            } catch (err) {
+                console.error('[WhatsApp] Afternoon post failed:', err);
             }
         }, { timezone: 'UTC' });
 
