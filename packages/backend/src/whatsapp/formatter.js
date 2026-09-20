@@ -21,10 +21,13 @@ export function formatWhatsAppPost(job) {
     if (!job) throw new Error('formatWhatsAppPost requires a job');
 
     return [
-        `🟢 *${sanitize(job.JobTitle)}*`,
+        `*${sanitize(job.JobTitle)}*`,
+
         `📂 ${sanitize(job.Category) || 'Other'}`,
         `📍 ${sanitize(job.Location) || 'Germany'}`,
         `🏢 ${sanitize(job.Company) || 'Unknown company'}`,
         `🔗 ${jobUrl(job)}`,
     ].join('\n');
 }
+
+
