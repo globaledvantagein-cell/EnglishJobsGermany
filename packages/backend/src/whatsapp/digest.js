@@ -2,10 +2,10 @@
  * WhatsApp Channel post.
  *
  * Runs twice daily (9am + 5pm CET) and posts exactly 1 job to the WhatsApp
- * channel via wacli, as the logo image with the job info as its caption.
- * Jobs are picked at random from the active German jobs (remote jobs excluded),
- * weighting jobs posted in the last 30 days 3x. Sent jobs are tracked in the
- * `whatsappSentJobs` collection so nothing repeats until the pool is cycled.
+ * channel via wacli as text with a link preview. Jobs are picked at random
+ * from the active German jobs (remote jobs excluded), weighting jobs posted
+ * in the last 30 days 3x. Sent jobs are tracked in the `whatsappSentJobs`
+ * collection so nothing repeats until the pool is cycled.
  *
  * Gated entirely on WHATSAPP_CHANNEL_JID. Unset, this is a no-op.
  *
@@ -17,14 +17,11 @@
  *   node src/whatsapp/digest.js
  */
 import { randomBytes } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { WHATSAPP_CHANNEL_JID } from '../env.js';
-import { isWacliConnected, sendImageToChannel, sendTextToChannel } from './client.js';
+import { isWacliConnected, sendTextToChannel } from './client.js';
 import { formatWhatsAppPost } from './formatter.js';
 
 const LOG = '[WhatsApp]';
-const LOGO_PATH = fileURLToPath(new URL('./assets/logo.png', import.meta.url));
 const SENT_COLLECTION = 'whatsappSentJobs';
 const RESET_THRESHOLD = 0.8;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -134,9 +131,7 @@ export async function runWhatsAppDigest(opts = {}) {
         return { sent: false, jobIds, dryRun: true };
     }
 
-    const result = existsSync(LOGO_PATH)
-        ? await sendImageToChannel(LOGO_PATH, message)
-        : await sendTextToChannel(message);
+    const result = await sendTextToChannel(message);
 
     if (!result.success) {
         console.error(`${LOG} Post failed: ${result.error}`);

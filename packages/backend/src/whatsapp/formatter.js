@@ -17,10 +17,10 @@ function formatSalary(job) {
     const currency = job.SalaryCurrency || 'EUR';
     const sym = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : currency;
     if (job.SalaryMin && job.SalaryMax) {
-        return `💰 ${sym}${Math.round(job.SalaryMin / 1000)}K – ${sym}${Math.round(job.SalaryMax / 1000)}K`;
+        return `💰  ${sym}${Math.round(job.SalaryMin / 1000)}K – ${sym}${Math.round(job.SalaryMax / 1000)}K`;
     }
-    if (job.SalaryMin) return `💰 From ${sym}${Math.round(job.SalaryMin / 1000)}K`;
-    return `💰 Up to ${sym}${Math.round(job.SalaryMax / 1000)}K`;
+    if (job.SalaryMin) return `💰  From ${sym}${Math.round(job.SalaryMin / 1000)}K`;
+    return `💰  Up to ${sym}${Math.round(job.SalaryMax / 1000)}K`;
 }
 
 /**
@@ -42,7 +42,7 @@ export function formatWhatsAppPost(job) {
     const salary = formatSalary(job);
     if (salary) lines.push(salary);
 
-    lines.push('', `🔗  ${jobUrl(job)}`);
+    lines.push('', jobUrl(job));
 
     return lines.join('\n');
 }
