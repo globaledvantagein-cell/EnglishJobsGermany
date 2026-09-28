@@ -307,7 +307,11 @@ function hashForShuffle(str, seed) {
         h = ((h << 5) - h + str.charCodeAt(i)) | 0;
     }
     h = Math.imul(h ^ seed, 2654435761);
-    h ^= h >>> 15;
+    // Extra avalanche rounds (murmur3 finaliser) so similar JobIDs don't get
+    // correlated values — the daily draw relies on this looking random.
+    h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b);
+    h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35);
+    h ^= h >>> 16;
     return h | 0;
 }
 
@@ -319,7 +323,19 @@ function hashForShuffle(str, seed) {
  * @param {number} limit - Number of results to return (default 10)
  * @returns {{ matches: object[], meta: object }}
  */
-export function getSkillMatches(parsedProfile, limit = 10) {
+// Candidate pool size for the daily draw: the random pick is made from the
+// best POOL_MULTIPLIER × limit matches, so results vary a lot day to day but
+// stay relevant.
+const POOL_MULTIPLIER = 6;
+
+/**
+ * @param {object} parsedProfile
+ * @param {number} [limit=10]
+ * @param {object} [opts]
+ * @param {string[]} [opts.excludeIds] JobIDs shown recently — pushed to the back.
+ * @param {number}   [opts.seed]       Override the daily seed (e.g. Refresh).
+ */
+export function getSkillMatches(parsedProfile, limit = 10, opts = {}) {
     if (!parsedProfile) {
         return { matches: [], meta: { reason: 'no_profile' } };
     }
@@ -349,7 +365,8 @@ export function getSkillMatches(parsedProfile, limit = 10) {
 
     const profileLevel  = parsedProfile.seniority_level || parsedProfile.experience_level || null;
     const profileDomain = parsedProfile.domain || null;
-    const seed = dateSeed();
+    const seed = opts.seed ?? dateSeed();
+    const recent = new Set((opts.excludeIds || []).map(String));
     const scored = [];
     let jobsWithRequirements = 0;
 
@@ -389,23 +406,25 @@ export function getSkillMatches(parsedProfile, limit = 10) {
         });
     }
 
-    // Sort: highest score first, then daily seed for rotation.
-    //
-    // Comparing raw scores made the seed a no-op — float scores almost never
-    // tie exactly, so the top-N was identical every day ("same jobs every
-    // day"). Bucketing scores into 0.10 bands means jobs of comparable match
-    // quality share a band and rotate daily by `_tiebreaker`, while a clearly
-    // stronger band still ranks above a weaker one. Exact score breaks final ties.
-    //
-    // 0.05 bands were too narrow for the range real scores land in — only jobs
-    // within 5% of each other ever rotated, so most of the list was frozen.
-    const scoreBand = (s) => Math.round(s * 10); // 0.10-wide bands
-    scored.sort((a, b) => {
-        const bandDiff = scoreBand(b.score) - scoreBand(a.score);
-        if (bandDiff !== 0) return bandDiff;
-        if (a._tiebreaker !== b._tiebreaker) return a._tiebreaker - b._tiebreaker;
-        return b.score - a.score;
-    });
+    // Randomised daily pick. A strict score sort showed the same top jobs
+    // every day, so instead:
+    //   1. keep the best POOL_MULTIPLIER × limit matches as the candidate pool
+    //   2. draw from it with score-weighted random sampling (Efraimidis–Spirakis:
+    //      key = u^(1/weight)), seeded by the date so a day is stable but each
+    //      day differs; better matches are still more likely to be picked
+    //   3. jobs shown in the previous list get a heavy penalty so they rarely repeat
+    scored.sort((a, b) => b.score - a.score);
+    const pool = scored.slice(0, Math.max(limit * POOL_MULTIPLIER, 40));
+    for (const job of pool) {
+        // _tiebreaker is a 32-bit hash → uniform u in (0, 1)
+        const u = ((job._tiebreaker >>> 0) + 1) / 4294967297;
+        let weight = Math.max(job.score, 0.01);
+        if (recent.has(String(job.JobID))) weight *= 0.05;
+        job._key = Math.pow(u, 1 / weight);
+    }
+    pool.sort((a, b) => b._key - a._key);
+    scored.length = 0;
+    scored.push(...pool);
 
     // Company cap: walk the sorted list and skip any job whose company already
     // has MAX_JOBS_PER_COMPANY entries. Without it a single employer with many
@@ -418,9 +437,12 @@ export function getSkillMatches(parsedProfile, limit = 10) {
         const seenCount = companyCounts.get(companyKey) || 0;
         if (seenCount >= MAX_JOBS_PER_COMPANY) continue;
         companyCounts.set(companyKey, seenCount + 1);
-        const { _tiebreaker, ...rest } = job;
+        const { _tiebreaker, _key, ...rest } = job;
         matches.push(rest);
     }
+
+    // Show the picked jobs best-match first.
+    matches.sort((a, b) => b.score - a.score);
 
     return {
         matches,

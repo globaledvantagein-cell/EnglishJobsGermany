@@ -48,7 +48,10 @@ router.get('/skill-matches', verifyToken, requirePremium, async (req, res) => {
         }
 
         // ── Compute fresh matches ──────────────────────────────────────
-        const { matches, meta } = getSkillMatches(profile);
+        // Avoid repeating the previous list, and give Refresh a new random draw.
+        const excludeIds = (stored?.dailyMatches?.matches || []).map(m => m.JobID);
+        const seed = forceRefresh ? crypto.randomInt(1, 2 ** 31) : undefined;
+        const { matches, meta } = getSkillMatches(profile, 10, { excludeIds, seed });
 
         // ── Save to user doc (fire-and-forget) ─────────────────────────
         if (meta.reason === 'ok' || meta.reason === 'no_matches') {
