@@ -68,6 +68,10 @@ export const requirePremium = async (req, res, next) => {
 // req.isPremium (boolean) so routes can behave differently for free vs premium
 // users (e.g. the JD view endpoint). Anonymous → false; admins → true.
 export const attachPremiumStatus = async (req, res, next) => {
+    // Paywall removed: everyone (including anonymous visitors) gets full access.
+    req.isPremium = true;
+    return next();
+    // eslint-disable-next-line no-unreachable
     req.isPremium = false;
     try {
         if (req.user?.role === 'admin') {

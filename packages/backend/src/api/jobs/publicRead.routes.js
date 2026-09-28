@@ -232,7 +232,10 @@ export function attachPublicReadRoutes(router) {
             // counter reflects total detail views including gated ones.
             if (!req.isHealthCheck) Analytics.increment('pageViews_jobDetail'); // fire-and-forget
 
-            // ── Authenticated users ──────────────────────────────────────
+            // Paywall removed: every visitor gets the full job, no metering.
+            return res.status(200).json({ gated: false, job: toPublicJob(job) });
+
+            // eslint-disable-next-line no-unreachable
             if (req.user?.id) {
                 const isAdmin = req.user.role === 'admin';
                 // Admins skip the DB read entirely; free/premium need the doc

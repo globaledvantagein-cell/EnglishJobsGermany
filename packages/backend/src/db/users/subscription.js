@@ -138,7 +138,10 @@ export async function updateJobPreferences(userId, prefs) {
  * Always compares as Date objects (never string comparison) so ISO strings
  * loaded from JSON still work. Null / undefined / past dates → false.
  */
+// Paywall removed: every user gets full (premium) access.
 export function isPremium(user) {
+    return true;
+    // eslint-disable-next-line no-unreachable
     if (!user || !user.premiumUntil) return false;
     const until = new Date(user.premiumUntil);
     if (isNaN(until.getTime())) return false;

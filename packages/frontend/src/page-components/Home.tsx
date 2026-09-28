@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type R
 import { Link, useNavigate } from '@/compat/router';
 import type { IJob, ICompany } from '../types';
 import { HOME_CATEGORIES, categorySlug } from '../utils/categorize';
-import CohortWaitlistModal from '../components/CohortWaitlistModal';
 import CompanyLogo from '../components/CompanyLogo';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47,20 +46,6 @@ const WHY_US = [
   { title: 'Direct to the employer', copy: 'Apply straight to the company or recruiter behind each role, no forwarding through third parties.' },
   { title: 'Updated daily', copy: 'New roles are added every day, so listings stay current instead of going stale.' },
   { title: 'Built for relocation', copy: 'Visa and relocation guidance sits alongside the jobs, not in a separate resource you have to hunt for.' },
-] as const;
-
-const COACHING_FEATURES = [
-  'Weekly live cohort sessions with a dedicated coach',
-  'CV and LinkedIn rework tailored to the German market',
-  'Mock interviews with feedback from hiring managers',
-  'Private community of job seekers going through the same search',
-] as const;
-
-const COHORT_DETAILS = [
-  { label: 'Starts', value: 'Sept 15, 2026' },
-  { label: 'Duration', value: '6 weeks' },
-  { label: 'Format', value: 'Live online + community' },
-  { label: 'Seats', value: '20 per cohort' },
 ] as const;
 
 // The 12 highest-volume categories, linked to their /category/<slug> pages.
@@ -216,9 +201,6 @@ export default function Home({ initialJobs = [], initialCompanies = [], heading,
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [heroLocation, setHeroLocation] = useState('');
-  // Cohort demand test: the CTA never leads to a real cohort — the modal
-  // always says "full" and collects waitlist signups.
-  const [cohortModalOpen, setCohortModalOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   useHomeMotion(rootRef);
 
@@ -550,61 +532,6 @@ export default function Home({ initialJobs = [], initialCompanies = [], heading,
           </div>
         </section>
 
-        {/* ── CAREER COACHING ───────────────────────────────────────────────── */}
-        <section style={{ padding: `68px ${SECTION_X}`, background: 'var(--primary-soft)' }}>
-          <div className="lp-coach-grid" data-reveal="stagger" style={{ maxWidth: 1120, margin: '0 auto' }}>
-            <div>
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 18, padding: '7px 13px',
-                borderRadius: 999, background: 'var(--bg-surface)', color: 'var(--primary)', fontSize: 12, fontWeight: 800,
-              }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--primary)' }} />
-                New · Career coaching
-              </div>
-              <h2 className="lp-balance" style={{ fontSize: 'clamp(28px, 3.6vw, 40px)', letterSpacing: '-0.04em', lineHeight: 1.08, fontWeight: 800, margin: 0 }}>
-                Get hired faster with cohort-based coaching
-              </h2>
-              <p style={{ marginTop: 14, color: 'var(--text-secondary)', fontSize: 16, maxWidth: 480 }}>
-                Join a small group of international job seekers and work through your CV, interviews and job search
-                strategy for the German market — live, week by week.
-              </p>
-
-              <div style={{ display: 'grid', gap: 14, marginTop: 26 }}>
-                {COACHING_FEATURES.map(f => (
-                  <div key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                    <span style={{ marginTop: 6, width: 6, height: 6, borderRadius: '50%', background: 'var(--primary)', flexShrink: 0 }} />
-                    <span style={{ fontSize: 15, color: 'var(--text-primary)' }}>{f}</span>
-                  </div>
-                ))}
-              </div>
-
-              <button type="button" onClick={() => setCohortModalOpen(true)} className="lp-primary-btn" style={{
-                marginTop: 28, minHeight: 48, padding: '0 24px', display: 'inline-flex', alignItems: 'center',
-                justifyContent: 'center', borderRadius: 11, background: 'var(--primary)', color: '#fff',
-                fontWeight: 800, fontSize: 15, border: 'none', cursor: 'pointer',
-                fontFamily: 'inherit', transition: 'background 0.15s ease',
-              }}>
-                Apply for the next cohort
-              </button>
-            </div>
-
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 18, padding: 30 }}>
-              <p style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', margin: 0 }}>
-                Next cohort
-              </p>
-              {COHORT_DETAILS.map(d => (
-                <div key={d.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ color: 'var(--text-secondary)', fontSize: 14 }}>{d.label}</span>
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>{d.value}</span>
-                </div>
-              ))}
-              <p style={{ marginTop: 16, fontSize: 13, color: 'var(--text-muted)' }}>
-                Limited to 20 seats per cohort to keep coaching hands-on.
-              </p>
-            </div>
-          </div>
-        </section>
-
         {/* ── BROWSE BY CATEGORY ────────────────────────────────────────────── */}
         <section style={{ padding: `68px ${SECTION_X}` }}>
           <div style={{ maxWidth: 1120, margin: '0 auto' }}>
@@ -663,7 +590,6 @@ export default function Home({ initialJobs = [], initialCompanies = [], heading,
         </section>
       </main>
 
-      {cohortModalOpen && <CohortWaitlistModal onClose={() => setCohortModalOpen(false)} />}
     </div>
   );
 }

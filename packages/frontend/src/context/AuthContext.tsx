@@ -121,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     identifyUser(user.id, {
       email: user.email,
       role: user.role,
-      isPremium: isAdmin || (usage?.isPremium ?? false),
+      isPremium: true, // Paywall removed: everyone has full access
     });
   }, [user, usage, isAdmin]);
 
@@ -136,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading,
     usage,
     // Admins are always premium; otherwise defer to the usage endpoint.
-    isPremium: isAdmin || (usage?.isPremium ?? false),
+    isPremium: true, // Paywall removed: everyone has full access
     refreshUsage,
   }), [user, token, login, loginWithGoogle, logout, isLoading, usage, isAdmin, refreshUsage]);
 

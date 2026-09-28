@@ -15,7 +15,7 @@
  * checklist pattern the rest of the rail uses.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronDown, Lock, Search } from 'lucide-react';
 import SearchWithGhost from './filters/SearchWithGhost';
 import { track } from '../utils/analytics';
@@ -242,23 +242,12 @@ function toggleValue(list: string[], value: string): string[] {
 export default function BrowseSidebar({
   filters, setFilters, companyOptions, categoryOptions, facetCounts,
   hasActiveFilters, activeFilterCount, clearFilters,
-  isPremium = true, onPremiumRequired,
+  onPremiumRequired,
   autocompleteEndpoint = '/api/jobs/autocomplete', extraFilters,
   variant = 'main', countryOptions = [],
 }: Props) {
   const isRemote = variant === 'remote';
-  // Premium state is NOT known during server render: AuthContext starts at
-  // user/token = null and only reads localStorage in an effect, and /jobs is
-  // statically prerendered — so the build-time HTML always says "not premium".
-  // Deriving `locked` straight from isPremium therefore made the <Lock> icon
-  // appear in the server HTML and vanish on the client, which is a hydration
-  // mismatch that throws away the whole tree.
-  //
-  // Gate on mount instead: server and first client render both produce
-  // locked = true (fail closed), and the real value takes over after hydration.
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => { setHydrated(true); }, []);
-  const locked = !hydrated || !isPremium;
+  const locked = false; // Paywall removed: all filters are free
 
   const [open, setOpen] = useState<Record<string, boolean>>(DEFAULT_OPEN);
   const toggleSection = (key: string) => () => setOpen(prev => ({ ...prev, [key]: !prev[key] }));
