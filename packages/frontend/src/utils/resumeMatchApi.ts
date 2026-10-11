@@ -156,12 +156,15 @@ function buildHeaders(): Record<string, string> {
 async function readResponse(res: Response): Promise<MatchResponse> {
   // The backend always replies JSON; guard anyway (proxies/timeouts can send HTML).
   const data = await res.json().catch(() => null) as
-    | (Partial<Omit<MatchResponse, 'success'>> & { success?: boolean; error?: string; code?: string })
+    | (Partial<Omit<MatchResponse, 'success'>> & { success?: boolean; error?: string; message?: string; code?: string })
     | null;
 
   if (!res.ok || !data || data.success === false) {
+    if (res.status === 504 || res.status === 502) {
+      throw new ResumeMatchError('Matching timed out while analyzing roles. Please click "Find my matches" to try again.', res.status, 'TIMEOUT');
+    }
     const message =
-      (data && data.error) ||
+      (data && (data.message || data.error)) ||
       (res.status === 429 ? 'Service is busy. Please try again in a minute.' : '') ||
       `Request failed (${res.status})`;
     throw new ResumeMatchError(message, res.status, data?.code);

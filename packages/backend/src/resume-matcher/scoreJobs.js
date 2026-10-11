@@ -32,11 +32,11 @@ function scoreWithGemini(systemPrompt, userMessage, label) {
     });
 }
 
-const PASS_A_BATCH_SIZE = 50;
-const PASS_B_BATCH_SIZE = 10;
-const PASS_A_TOP_N = 20;
+const PASS_A_BATCH_SIZE = 25;
+const PASS_B_BATCH_SIZE = 15;
+const PASS_A_TOP_N = 15;
 const PASS_B_TOP_N = 15;
-const DELAY_BETWEEN_BATCHES_MS = 500;
+const DELAY_BETWEEN_BATCHES_MS = 250;
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -151,7 +151,13 @@ async function runPassA(profile, jobs) {
             const rows = parseJsonArray(raw);
 
             for (const row of rows) {
-                const job = batch[row.index];      // index is batch-relative
+                let job = null;
+                if (typeof row.index === 'number') {
+                    job = batch[row.index] || batch[row.index - 1]; // handle 0-based or 1-based
+                }
+                if (!job && row.jobId) {
+                    job = batch.find(j => String(j._id) === String(row.jobId) || String(j.JobID) === String(row.jobId));
+                }
                 if (!job) continue;                // ignore hallucinated indexes
                 const score = Number(row.score);
                 if (Number.isNaN(score)) continue;
@@ -194,7 +200,13 @@ async function runPassB(profile, shortlistedJobs) {
             const rows = parseJsonArray(raw);
 
             for (const row of rows) {
-                const job = batch[row.index];      // index is batch-relative
+                let job = null;
+                if (typeof row.index === 'number') {
+                    job = batch[row.index] || batch[row.index - 1];
+                }
+                if (!job && row.jobId) {
+                    job = batch.find(j => String(j._id) === String(row.jobId) || String(j.JobID) === String(row.jobId));
+                }
                 if (!job) continue;
                 const score = Number(row.score);
                 if (Number.isNaN(score)) continue;

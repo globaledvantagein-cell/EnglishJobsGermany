@@ -30,7 +30,9 @@ type Status = 'idle' | 'loading' | 'done' | 'error';
 function toUiError(err: unknown): { message: string } {
   if (err instanceof ResumeMatchError) {
     if (err.code === 'RATE_LIMITED' || err.status === 429) return { message: 'Service is busy. Try again in a minute.' };
-    if (err.status === 401 || err.status === 403) return { message: 'Session expired. Please sign in again.' };
+    if (err.code === 'TIMEOUT' || err.status === 504) return { message: 'Scoring timed out. Please click "Try again".' };
+    if (err.status === 403) return { message: 'A Premium subscription is required to run Smart Match.' };
+    if (err.status === 401) return { message: 'Session expired. Please sign in again.' };
     return { message: err.message || 'Something went wrong.' };
   }
   return { message: 'Network error — could not reach the server.' };
@@ -68,7 +70,7 @@ export default function SmartMatch() {
     // Try loading cached Smart Match results
     apiGet<{ success: boolean; results?: MatchResponse['results']; meta?: MatchResponse['meta']; profile?: MatchResponse['profile']; cached?: boolean }>('/api/jobs/admin/resume-match')
       .then(data => {
-        if (data?.success && data.results && data.results.length > 0 && data.profile) {
+        if (data?.success && data.profile && Array.isArray(data.results)) {
           setResult({ results: data.results, meta: data.meta, profile: data.profile } as MatchResponse);
           setStatus('done');
         }
@@ -76,7 +78,7 @@ export default function SmartMatch() {
       .catch(() => { /* no cache, that's fine */ });
   }, [token, authLoading, premiumKnown]);
 
-  const runMatch = async (payload?: { text: string }) => {
+  const runMatch = async () => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -86,13 +88,7 @@ export default function SmartMatch() {
     setResult(null);
 
     try {
-      let data: MatchResponse;
-      if (payload?.text) {
-        data = await matchResumeText(payload.text);
-      } else {
-        // Use stored profile — send empty request, backend reads from user doc
-        data = await matchResumeText('USE_STORED_PROFILE');
-      }
+      const data = await matchResumeText('USE_STORED_PROFILE', controller.signal);
       if (!controller.signal.aborted) {
         setResult(data);
         setStatus('done');

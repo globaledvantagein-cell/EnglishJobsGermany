@@ -7,23 +7,23 @@
 import { getAllJobs } from '../cache/index.js';
 
 const DOMAIN_TO_CATEGORIES = {
-    'Software Engineering': ['engineering', 'software', 'it', 'technical', 'product_tech'],
-    'Engineering':          ['engineering', 'software', 'it', 'technical', 'product_tech'],
-    'Marketing':            ['marketing', 'communications', 'content'],
-    'Sales':                ['sales', 'business_development'],
-    'Finance':              ['finance', 'accounting', 'other_nontech'],
-    'HR':                   ['hr', 'people', 'recruiting'],
-    'Design':               ['design', 'ux', 'ui', 'creative', 'product_tech'],
-    'Data':                 ['data', 'analytics', 'data_science'],
-    'Product':              ['product', 'product_tech'],
-    'Operations':           ['operations', 'supply_chain', 'logistics', 'other_nontech'],
-    'Legal':                ['legal', 'compliance'],
+    'Software Engineering': ['software engineering', 'hardware & systems', 'cybersecurity', 'ai / ml', 'it & enterprise systems'],
+    'Engineering':          ['software engineering', 'hardware & systems', 'cybersecurity', 'ai / ml', 'it & enterprise systems'],
+    'Marketing':            ['marketing & growth', 'localization', 'solutions & pre-sales'],
+    'Sales':                ['sales', 'solutions & pre-sales', 'customer success & support'],
+    'Finance':              ['finance & accounting'],
+    'HR':                   ['hr & people'],
+    'Design':               ['design', 'gaming & entertainment'],
+    'Data':                 ['data & analytics', 'ai / ml', 'research & clinical'],
+    'Product':              ['product management'],
+    'Operations':           ['operations & strategy', 'supply chain & manufacturing', 'retail & facilities', 'administration'],
+    'Legal':                ['legal & compliance', 'trust & safety'],
     'Other':                [],
 };
 
 const GERMAN_SUFFICIENT = ['fluent', 'native', 'professional'];
 const MIN_RESULTS_BEFORE_BROADENING = 20;
-const MAX_RESULTS = 200;
+const MAX_RESULTS = 50; // Cap to 50 jobs (2 batches of 25) so Pass A runs in < 15s
 
 /**
  * Checks if a job's German requirement is compatible with the candidate.
@@ -78,8 +78,8 @@ export function filterJobs(profile) {
     const matchingCategories = DOMAIN_TO_CATEGORIES[profile.domain] || [];
     if (matchingCategories.length > 0) {
         const categoryFiltered = filtered.filter(job => {
-            const jobCat = (job.Category || '').toLowerCase();
-            return matchingCategories.some(cat => jobCat.includes(cat));
+            const jobCat = (job.Category || '').toLowerCase().trim();
+            return matchingCategories.some(cat => jobCat === cat || jobCat.startsWith(cat) || cat.startsWith(jobCat));
         });
         // Only apply if it doesn't reduce too much
         if (categoryFiltered.length >= MIN_RESULTS_BEFORE_BROADENING) {

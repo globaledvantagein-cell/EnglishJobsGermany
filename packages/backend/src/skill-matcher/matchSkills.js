@@ -67,9 +67,7 @@ const SYNONYM_GROUPS = [
     ['apachekafka',    'kafka'],
     ['rabbitmq',       'amqp'],
     ['redis',          'rediscache'],
-    ['github',         'git'],
-    ['gitlab',         'git'],
-    ['bitbucket',      'git'],
+    ['git',            'github', 'gitlab', 'bitbucket'],
     ['jira',           'atlassian'],
     ['dataanalysis',   'dataanalytics', 'analytics'],
     ['businessintelligence', 'bi'],
@@ -211,16 +209,19 @@ function scoreJob(job, userSkills) {
         // Skip vague compound skills — they inflate the denominator
         if (isCompoundSkill(name)) return;
 
-        totalSkillCount++;
         const canonical = toCanonical(normalizeSkillName(name));
+        if (seen.has(canonical)) return; // Prevent duplicate aliases in requirements from inflating maxPoints
+
+        totalSkillCount++;
+        seen.add(canonical);
+
         if (isRequired) requiredMaxPoints += weight;
         else            optionalMaxPoints += weight;
 
-        if (userSkills.has(canonical) && !seen.has(canonical)) {
+        if (userSkills.has(canonical)) {
             if (isRequired) requiredRawPoints += weight;
             else            optionalRawPoints += weight;
             matchedSkills.push(name);
-            seen.add(canonical);
         }
     }
 
@@ -238,11 +239,15 @@ function scoreJob(job, userSkills) {
     const requiredScore = requiredMaxPoints > 0 ? requiredRawPoints / requiredMaxPoints : 0;
     const bonusScore    = optionalMaxPoints  > 0 ? optionalRawPoints / optionalMaxPoints  : 0;
 
-    // A posting that lists no required skills at all would otherwise be capped
-    // at 0.2 no matter how well it matched — fall back to the bonus side alone.
-    const skillScore = requiredMaxPoints > 0
-        ? (requiredScore * 0.8) + (bonusScore * 0.2)
-        : bonusScore;
+    let skillScore;
+    if (requiredMaxPoints > 0 && optionalMaxPoints > 0) {
+        skillScore = (requiredScore * 0.8) + (bonusScore * 0.2);
+    } else if (requiredMaxPoints > 0) {
+        // If a posting specifies no optional skills, required alone accounts for 100%
+        skillScore = requiredScore;
+    } else {
+        skillScore = bonusScore;
+    }
 
     return {
         skillScore,
@@ -276,16 +281,24 @@ function levelMultiplier(profileLevel, jobLevel) {
 }
 
 // ── Domain Alignment Boost ───────────────────────────────────────────────────
-// Returns 1.0 for same domain, 0.85 for cross-domain.
+// Returns 1.0 for same/compatible domain, 0.85 for cross-domain.
 // Not a hard filter — a software engineer CAN get data roles — just ranked lower.
-function domainMultiplier(profileDomain, jobDomain) {
-    if (!profileDomain || !jobDomain) return 1.0;
-    const p = profileDomain.toLowerCase();
-    const j = jobDomain.toLowerCase();
-    if (p === j) return 1.0;
-    // Technical ↔ Non-Technical is a bigger gap
-    if ((p === 'technical' && j === 'non-technical') ||
-        (p === 'non-technical' && j === 'technical')) return 0.75;
+function domainMultiplier(profileDomain, jobCategory, jobDomain) {
+    if (!profileDomain) return 1.0;
+    const p = profileDomain.toLowerCase().trim();
+    const c = (jobCategory || '').toLowerCase().trim();
+    const d = (jobDomain || '').toLowerCase().trim();
+
+    // Direct alignment checks
+    const isTechProfile = ['software engineering', 'engineering', 'data', 'product'].includes(p);
+    const isTechJob = d === 'technical' || c.includes('software') || c.includes('data') || c.includes('ai') || c.includes('cyber');
+
+    if (p === c || c.includes(p) || p.includes(c)) return 1.0;
+    if (isTechProfile && isTechJob) return 1.0;
+    if (!isTechProfile && !isTechJob && d === 'non-technical') return 1.0;
+
+    // Cross tech/non-tech boundary
+    if ((isTechProfile && !isTechJob) || (!isTechProfile && isTechJob)) return 0.75;
     return 0.85;
 }
 
@@ -379,7 +392,7 @@ export function getSkillMatches(parsedProfile, limit = 10, opts = {}) {
 
         // Apply experience level and domain multipliers
         const lvlMult = levelMultiplier(profileLevel, job.ExperienceLevel);
-        const domMult = domainMultiplier(profileDomain, job.Domain);
+        const domMult = domainMultiplier(profileDomain, job.Category, job.Domain);
         const finalScore = result.skillScore * lvlMult * domMult;
 
         scored.push({
