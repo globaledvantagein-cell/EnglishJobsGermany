@@ -1,27 +1,20 @@
-// Cookie/analytics consent — currently DISABLED, kept intact for re-enabling.
+// Cookie/analytics consent.
 //
-// Tracking is deliberately ungated: PostHog (including session replay) and GA4
-// both run for every visitor from first paint, and the consent banner is not
-// rendered (components/Providers.tsx). applyConsent() is therefore a no-op —
-// nothing in the app changes behaviour based on a stored choice.
+// Nothing non-essential runs until the visitor accepts: Google Analytics and
+// PostHog (including session recordings) are only loaded by applyConsent
+// ('accepted'). "Only necessary" — or no answer yet — means neither is loaded.
+// The choice is stored per device; the footer "Cookie settings" link reopens
+// the banner to change it, and withdrawing stops tracking immediately.
 //
-// Nothing here has been deleted, so restoring consent is a small, contained
-// change:
-//   1. Render <CookieConsent /> again in components/Providers.tsx.
-//   2. Restore the applyConsent() body below (toggle PostHog
-//      disable_session_recording, and gtag('consent','update',...) for GA4).
-//   3. Re-add GA4 Consent Mode defaults (analytics_storage: 'denied') to the
-//      gtag bootstrap in app/layout.tsx, and read the stored choice back in
-//      components/PostHogInit.tsx.
-//   4. Bump CONSENT_VERSION so every visitor is asked once.
-//
-// getConsent()/setConsent() still read and write the stored choice, so the
-// footer "Cookie settings" entry point keeps working and any choice a visitor
-// made previously is preserved — it simply has no effect while this is off.
+// The loaders live in utils/tracking.ts. components/TrackingInit.tsx applies a
+// stored choice on page load; components/CookieConsent.tsx asks for one.
 
+import { startGoogleAnalytics, startPostHog, stopTracking } from './tracking';
 
 /** Bump this when the cookie policy changes to re-prompt everyone once. */
-export const CONSENT_VERSION = 1;
+// v2: tracking became consent-gated, so earlier answers (which changed
+// nothing) are discarded and everyone is asked once.
+export const CONSENT_VERSION = 2;
 
 const STORAGE_KEY = 'ejg_cookie_consent';
 
@@ -48,7 +41,7 @@ export function getConsent(): StoredConsent | null {
   }
 }
 
-/** Persist a choice. Applying it is currently a no-op — see the file header. */
+/** Persist a choice and apply it immediately. */
 export function setConsent(choice: ConsentChoice): void {
   if (typeof window === 'undefined') return;
   try {
@@ -60,14 +53,19 @@ export function setConsent(choice: ConsentChoice): void {
   applyConsent(choice);
 }
 
-/**
- * No-op. Tracking is ungated, so a consent choice currently changes nothing —
- * neither PostHog nor GA4 is reconfigured. Kept (and still called by
- * setConsent) so restoring consent means filling this body back in rather than
- * rewiring call sites. See the file header for the full re-enable checklist.
- */
-export function applyConsent(_choice: ConsentChoice): void {
-  return;
+/** Start or stop analytics to match a choice. */
+export function applyConsent(choice: ConsentChoice): void {
+  if (choice === 'accepted') {
+    startPostHog();
+    startGoogleAnalytics();
+  } else {
+    stopTracking();
+  }
+}
+
+/** On page load: start analytics only if this device already accepted. */
+export function applyStoredConsent(): void {
+  if (getConsent()?.choice === 'accepted') applyConsent('accepted');
 }
 
 /** Event name used by the footer "Cookie settings" link to reopen the banner. */

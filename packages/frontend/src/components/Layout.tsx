@@ -129,6 +129,17 @@ export default function Layout({ children }: { children: ReactNode }) {
   const isActive = useCallback((path: string) => pathname === path, [pathname]);
   const links = useMemo(() => effIsAdmin ? ADMIN_LINKS : PUBLIC_LINKS, [effIsAdmin]);
 
+  // The admin panel brings its own full-viewport shell (sidebar + top bar), so
+  // the public nav, footer and widgets would only eat vertical space there.
+  if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+    return (
+      <>
+        {children}
+        <ConnectionBanner />
+      </>
+    );
+  }
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Both read useSearchParams — isolated so the rest of the page prerenders. */}

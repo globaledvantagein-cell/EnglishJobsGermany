@@ -6,12 +6,13 @@ import {
     findJobById,
 } from '../../db/index.js';
 import { upsertJob, removeJob, refreshJobsCache } from '../../cache/index.js';
+import { verifyToken, verifyAdmin } from '../../middleware/authMiddleware.js';
 
 export function attachAdminCuratedRoutes(router) {
 
     // Bulk-delete jobs by company. Easier to refresh whole cache than
     // figure out exactly which entries to drop.
-    router.delete('/company', async (req, res) => {
+    router.delete('/company', verifyToken, verifyAdmin, async (req, res) => {
         try {
             const { name } = req.query;
             if (name) {
@@ -30,7 +31,7 @@ export function attachAdminCuratedRoutes(router) {
 
     // Admin manually adds a job. Created with Status:'active', so upsert
     // straight into the cache so it shows on the site immediately.
-    router.post('/', async (req, res) => {
+    router.post('/', verifyToken, verifyAdmin, async (req, res) => {
         try {
             const jobData = req.body;
             const newJob = await addCuratedJob(jobData);
@@ -49,7 +50,7 @@ export function attachAdminCuratedRoutes(router) {
 
     // Delete one job by _id. Need to fetch first to know the JobID for
     // the cache key (cache is keyed by JobID, not _id).
-    router.delete('/:id', async (req, res) => {
+    router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
         try {
             const { id } = req.params;
             if (!ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid ID' });

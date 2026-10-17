@@ -106,7 +106,7 @@ export function attachAdminReanalysisRoutes(router) {
 
     // One-shot analyze: runs AI on a job and updates its fields in MongoDB.
     // Then we re-fetch and sync the cache.
-    router.post('/:id/analyze', async (req, res) => {
+    router.post('/:id/analyze', verifyToken, verifyAdmin, async (req, res) => {
         try {
             const { id } = req.params;
             const job = await findJobById(id);

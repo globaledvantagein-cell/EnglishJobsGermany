@@ -12,6 +12,7 @@
 import { Link } from '@/compat/router';
 import { Linkedin, Twitter, MessageCircle } from 'lucide-react';
 import { CATEGORY_ORDER, categorySlug } from '../utils/categorize';
+import { openCookieSettings } from '../utils/consent';
 
 const SOCIALS: ReadonlyArray<{ label: string; href: string; Icon: typeof Linkedin }> = [
   { label: 'LinkedIn', href: 'https://www.linkedin.com/company/english-jobs-in-germany', Icon: Linkedin },
@@ -148,9 +149,10 @@ export default function Footer() {
               onMouseEnter={e => hoverable(e, 'var(--text-primary)')}
               onMouseLeave={e => hoverable(e, 'var(--text-muted)')}
             >Contact</a>
-            {/* "Cookie settings" removed while the consent banner is
-                disabled — it would open nothing. Restore alongside
-                <CookieConsent /> (see utils/consent.ts). */}
+            <button type="button" onClick={openCookieSettings} style={{ ...inlineLink, background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}
+              onMouseEnter={e => hoverable(e, 'var(--text-primary)')}
+              onMouseLeave={e => hoverable(e, 'var(--text-muted)')}
+            >Cookie settings</button>
             <span aria-hidden="true" style={{ width: 1, height: 12, background: 'var(--border-strong)' }} />
             {SOCIALS.map(({ label, href, Icon }) => (
               <a

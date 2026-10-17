@@ -20,5 +20,4 @@ export { FormField } from './FormField';
 export { EmptyState } from './EmptyState';
 export { ErrorState, classifyError } from './ErrorState';
 export { Alert } from './Alert';
-export { StatCard } from './StatCard';
 export { ProBadge } from './ProBadge';

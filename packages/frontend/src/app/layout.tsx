@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import Script from "next/script";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import Layout from "@/components/Layout";
@@ -89,26 +88,8 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
-        {/* Google Analytics 4. Runs alongside PostHog, independently.
-            No Consent Mode gate — GA sets its _ga cookies for every visitor
-            from first load, by explicit decision (see utils/consent.ts).
-            afterInteractive: loaded once the page is interactive, so it never
-            blocks rendering. Kept in <head> rather than at the top of <body>
-            so the injected <script> nodes don't land in front of the JSON-LD
-            <script>s and desync hydration (see components/PostHogInit.tsx).
-            Client-side route changes are tracked by components/GAPageView. */}
-        <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-3WM8L7XDH7"
-          strategy="afterInteractive"
-        />
-        <Script id="google-analytics" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-3WM8L7XDH7');
-          `}
-        </Script>
+        {/* Google Analytics is NOT loaded here: it starts only after cookie
+            consent (utils/tracking.ts, via components/TrackingInit). */}
       </head>
       <body suppressHydrationWarning>
         <JsonLd data={organizationJsonLd} />

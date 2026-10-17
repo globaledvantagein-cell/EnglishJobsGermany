@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { LEGACY_ADMIN_REDIRECTS } from "./src/components/admin/legacyRedirects";
 
 // Where the Express backend lives. Server components fetch this directly
 // (server-to-server); the browser hits the /api rewrite below.
@@ -30,11 +31,19 @@ const nextConfig: NextConfig = {
       other_tech: "it-enterprise-systems",
       other_nontech: "other-general-business",
     };
-    return Object.entries(legacyCategories).map(([from, to]) => ({
+    const categoryRedirects = Object.entries(legacyCategories).map(([from, to]) => ({
       source: `/category/${from}`,
       destination: `/category/${to}`,
       permanent: true,
     }));
+    // Pre-/admin admin URLs. Not permanent: these are bookmarks, not indexed
+    // pages, and a 307 keeps the door open to reusing a path later.
+    const adminRedirects = LEGACY_ADMIN_REDIRECTS.map(([source, destination]) => ({
+      source,
+      destination,
+      permanent: false,
+    }));
+    return [...categoryRedirects, ...adminRedirects];
   },
 
   async headers() {

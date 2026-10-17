@@ -15,7 +15,7 @@ import { pingIndexNowAsync, jobUrl } from '../../utils/indexNow.js';
 
 export function attachAdminReviewRoutes(router) {
 
-    router.get('/admin/review', async (req, res) => {
+    router.get('/admin/review', verifyToken, verifyAdmin, async (req, res) => {
         try {
             const page = parseInt(req.query.page) || 1;
             const limit = parseInt(req.query.limit) || 50;
@@ -29,7 +29,7 @@ export function attachAdminReviewRoutes(router) {
     // Admin accepts/rejects a pending job. After the DB write succeeds,
     // mirror the change into the RAM cache so the public list reflects
     // the decision immediately.
-    router.patch('/admin/decision/:id', async (req, res) => {
+    router.patch('/admin/decision/:id', verifyToken, verifyAdmin, async (req, res) => {
         try {
             const { id } = req.params;
             const { decision, rejectionReason } = req.body;
@@ -105,7 +105,7 @@ export function attachAdminReviewRoutes(router) {
         }
     });
 
-    router.get('/rejected', async (req, res) => {
+    router.get('/rejected', verifyToken, verifyAdmin, async (req, res) => {
         try {
             const jobs = await getRejectedJobs();
             res.status(200).json(jobs);

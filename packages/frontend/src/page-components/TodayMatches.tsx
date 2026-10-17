@@ -1,303 +1,112 @@
 'use client';
 
 /**
- * /today-matches — Daily skill-matched job recommendations.
+ * /today-matches (and /admin/today-matches) — daily skill-matched jobs.
  *
- * Pure programmatic matching — no AI, no API costs.
- * Compares the user's profile skills against parsedRequirements
- * on active jobs. Shows top 5 with matched/missing skill breakdown.
- *
- * Edge cases:
- *  - No parsedProfile → prompt to upload resume
- *  - Profile but no skills → prompt to add skills
- *  - No matching jobs → empty state
- *  - < 5 matches → show however many exist
+ * Pure programmatic matching (no AI): the user's profile skills against the
+ * parsedRequirements of active jobs. Renders through the shared
+ * MatchWorkspace; this page maps the response and picks the empty state.
  */
-import { useEffect, useState, type CSSProperties } from 'react';
-import { Link, useNavigate } from '@/compat/router';
-import { Sparkles, Upload, Wrench, RefreshCw } from 'lucide-react';
-import { Container, PageHeader, Button, EmptyState } from '../components/ui';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AlertTriangle, Loader2, RefreshCw, SearchX, Sparkles, Upload, Wrench } from 'lucide-react';
+import { Link } from '@/compat/router';
 import { useAuth } from '../context/AuthContext';
-import { fetchSkillMatches, type SkillMatchJob } from '../utils/skillMatchApi';
+import { apiGet } from '../utils/jobApi';
+import { fetchSkillMatches, type SkillMatchResponse } from '../utils/skillMatchApi';
 import { PremiumPitch } from '../components/UpgradeModal';
-import { track } from '../utils/analytics';
+import MatchWorkspace from '../components/matches/MatchWorkspace';
+import { StatePanel } from '../components/matches/MatchParts';
+import { usePremiumGate } from '../components/matches/usePremiumGate';
+import { fromSkillMatch } from '../components/matches/matchItem';
+import type { ResumeProfile } from '../utils/resumeMatchApi';
 import { BRAND } from '../theme/brand';
 
-type Status = 'loading' | 'done' | 'no_profile' | 'no_skills' | 'no_matches' | 'error';
+type LoadState = 'loading' | 'ready' | 'error';
+type SkillMeta = SkillMatchResponse['meta'] & { jobsWithRequirements?: number };
 
-// auto-fill + minmax(340) reliably yields 3 columns at the 1400 max, 2 on
-// tablet, 1 on mobile — a recommendation feed, not a data table.
-const MATCH_GRID: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-  gap: 14,
-};
+export default function TodayMatches({ embedded = false }: { embedded?: boolean }) {
+  const { token } = useAuth();
+  const gate = usePremiumGate('today_matches');
 
-export default function TodayMatches() {
-  const { token, isLoading: authLoading, isPremium, isAdmin, usage } = useAuth();
-  const navigate = useNavigate();
-  const [status, setStatus] = useState<Status>('loading');
-  const [matches, setMatches] = useState<SkillMatchJob[]>([]);
-  const [meta, setMeta] = useState<{ userSkillCount?: number; totalJobsScanned?: number }>({});
+  const [load, setLoad] = useState<LoadState>('loading');
+  const [refreshing, setRefreshing] = useState(false);
+  const [data, setData] = useState<SkillMatchResponse | null>(null);
+  const [profile, setProfile] = useState<ResumeProfile | null>(null);
 
-  useEffect(() => { document.title = `Today's Matches · ${BRAND.appName}`; }, []);
+  useEffect(() => { if (!embedded) document.title = `Today's Matches · ${BRAND.appName}`; }, [embedded]);
 
-  // Funnel: a non-premium user hit the Today's Matches premium wall.
-  useEffect(() => {
-    if (!authLoading && (isAdmin || usage !== null) && !isPremium) {
-      track('premium_feature_blocked', { feature: 'today_matches' });
+  const fetchMatches = useCallback(async (refresh: boolean) => {
+    if (refresh) setRefreshing(true);
+    try {
+      setData(await fetchSkillMatches(refresh));
+      setLoad('ready');
+    } catch {
+      setLoad('error');
+    } finally {
+      setRefreshing(false);
     }
-  }, [authLoading, isAdmin, usage, isPremium]);
-
-  const load = (refresh = false) => {
-    setStatus('loading');
-    fetchSkillMatches(refresh)
-      .then(data => {
-        setMatches(data.matches);
-        setMeta(data.meta);
-        setStatus(
-          data.meta.reason === 'no_profile'     ? 'no_profile' :
-          data.meta.reason === 'no_skills'      ? 'no_skills'  :
-          data.meta.reason === 'too_few_skills' ? 'no_skills'  :
-          data.meta.reason === 'cache_not_ready' ? 'error'     :
-          data.matches.length === 0             ? 'no_matches' :
-          'done'
-        );
-      })
-      .catch(() => setStatus('error'));
-  };
+  }, []);
 
   useEffect(() => {
-    // Premium-only — don't call /skill-matches (it 403s) for non-premium users.
-    if (authLoading || !token || !isPremium) return;
-    load();
-  }, [token, authLoading, isPremium]);
+    // Premium-only: non-premium users never call /skill-matches (it 403s).
+    if (gate !== 'allowed' || !token) return;
+    fetchMatches(false);
+    apiGet<{ parsedProfile?: ResumeProfile | null }>('/api/auth/me')
+      .then(me => setProfile(me?.parsedProfile ?? null))
+      .catch(() => setProfile(null));
+  }, [gate, token, fetchMatches]);
 
-  if (authLoading) {
+  const items = useMemo(() => (data?.matches ?? []).map(fromSkillMatch), [data]);
+
+  if (gate === 'blocked') {
     return (
-      <Container style={{ padding: '40px 24px' }}>
-        <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
-      </Container>
+      <PremiumPitch
+        icon={<Sparkles size={26} />}
+        title="Today's Matches — Premium"
+        description="A fresh daily shortlist of jobs matched to your profile skills."
+      />
     );
   }
 
-  // Premium gate — show the pitch before hitting the (403-ing) API. Wait for
-  // premium status to resolve first (admins are always premium).
-  if (!isAdmin && usage === null) {
-    return (
-      <Container style={{ padding: '40px 24px' }}>
-        <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
-      </Container>
-    );
-  }
-  if (!isPremium) {
-    return (
-      <div style={{ background: 'var(--bg-base)', minHeight: '80vh' }}>
-        <Container style={{ maxWidth: 800, padding: '40px 24px 48px' }}>
-          <PremiumPitch
-            icon={<Sparkles size={26} />}
-            title="Today's Matches — Premium"
-            description="A fresh, daily shortlist of jobs matched to your profile skills — no AI cost, updated every day. Available with Premium."
-          />
-        </Container>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ background: 'var(--bg-base)', minHeight: '80vh' }}>
-      <Container style={{ maxWidth: 1400, padding: '24px 24px 48px' }}>
-        <PageHeader
-          label="ENGLISH JOBS IN GERMANY"
-          title="Today's Matches"
-          subtitle="Jobs matching your profile skills — updated daily, no AI needed."
-        />
-
-        {status === 'loading' && (
-          <div style={MATCH_GRID}>
-            {[1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="skeleton" style={{ height: 170, borderRadius: 12 }} />
-            ))}
-          </div>
-        )}
-
-        {status === 'no_profile' && (
-          <PromptCard
-            icon={<Upload size={32} style={{ color: 'var(--text-muted)' }} />}
-            title="Upload your resume first"
-            body="Upload your resume on your Profile page to build your profile and enable job matching."
-            linkTo="/profile"
-            linkLabel="Go to Profile"
-          />
-        )}
-
-        {status === 'no_skills' && (
-          <PromptCard
-            icon={<Wrench size={32} style={{ color: 'var(--text-muted)' }} />}
-            title="Add skills to your profile"
-            body="Your profile doesn't have enough skills yet. Add at least 3 skills so we can find meaningful matches."
-            linkTo="/profile"
-            linkLabel="Edit Skills"
-          />
-        )}
-
-        {status === 'no_matches' && (
-          <EmptyState
-            icon={<Sparkles size={40} />}
-            title="No matching jobs today"
-            body="None of the active jobs match your current skills. Check back tomorrow or add more skills to your profile."
-          />
-        )}
-
-        {status === 'error' && (
-          <EmptyState
-            icon={<Sparkles size={40} />}
-            title="Something went wrong"
-            body="Could not load matches. Please try again."
-          />
-        )}
-
-        {status === 'done' && (
-          <>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                {matches.length} match{matches.length !== 1 ? 'es' : ''} from{' '}
-                {meta.totalJobsScanned?.toLocaleString()} jobs · {meta.userSkillCount} skills in your profile
-              </span>
-              <Button variant="ghost" size="sm" onClick={() => load(true)}>
-                <RefreshCw size={12} /> Refresh
-              </Button>
-            </div>
-
-            <div className="stagger" style={MATCH_GRID}>
-              {matches.map(job => (
-                <SkillMatchCard key={job._id} job={job} onClick={() => navigate(`/jobs/${job._id}`)} />
-              ))}
-            </div>
-          </>
-        )}
-      </Container>
-    </div>
+  const meta = data?.meta as SkillMeta | undefined;
+  const reason = meta?.reason;
+  const editProfile = (label: string, icon: ReactNode) => (
+    <Link to="/profile" className="mx-btn" data-variant="primary" data-size="lg">{icon}{label}</Link>
   );
-}
 
-// ── Match Card ─────────────────────────────────────────────────────────────────
-// Compact, self-contained feed card. Score is a small colour-coded badge in the
-// corner (not a giant number); matched skills are green chips at the bottom.
-const MAX_CHIPS = 6;
-
-function scoreBadgeColors(pct: number): { bg: string; fg: string } {
-  if (pct > 50) return { bg: 'var(--success-soft)', fg: 'var(--success)' }; // green
-  if (pct >= 30) return { bg: 'var(--warning-soft)', fg: 'var(--warning)' }; // yellow
-  return { bg: 'var(--bg-surface-2)', fg: 'var(--text-muted)' };             // gray
-}
-
-function SkillMatchCard({ job, onClick }: { job: SkillMatchJob; onClick: () => void }) {
-  const pct = Math.round(job.score * 100);
-  const badge = scoreBadgeColors(pct);
-  const locationLine = [job.Company, job.Location].filter(Boolean).join(' · ');
-  const chips = job.matchedSkills.slice(0, MAX_CHIPS);
-  const extra = job.matchedSkills.length - chips.length;
-
-  const open = () => onClick();
+  let state: ReactNode = null;
+  if (load === 'error' || reason === 'cache_not_ready') {
+    state = (
+      <StatePanel
+        icon={<AlertTriangle size={22} />}
+        title={reason === 'cache_not_ready' ? 'Jobs are still loading' : 'Could not load your matches'}
+        body={reason === 'cache_not_ready' ? 'The server just restarted and is loading jobs. Try again in a minute.' : 'Something went wrong on our side. Please try again.'}
+        action={<button type="button" className="mx-btn" data-variant="primary" data-size="lg" onClick={() => fetchMatches(true)}><RefreshCw size={15} />Try again</button>}
+      />
+    );
+  } else if (reason === 'no_profile') {
+    state = <StatePanel icon={<Upload size={22} />} title="Upload your resume first" body="We match jobs against the skills in your profile. Upload your resume on the Profile page to build it." action={editProfile('Go to Profile', <Upload size={15} />)} />;
+  } else if (reason === 'no_skills' || reason === 'too_few_skills') {
+    state = <StatePanel icon={<Wrench size={22} />} title="Add a few more skills" body="Your profile needs at least 3 skills for meaningful matches. Add them on your Profile page." action={editProfile('Edit skills', <Wrench size={15} />)} />;
+  } else if (load === 'ready' && items.length === 0) {
+    state = <StatePanel icon={<SearchX size={22} />} title="No matches today" body="None of today's active jobs list your skills. New jobs arrive daily, and adding more skills to your profile widens the net." action={editProfile('Add skills', <Wrench size={15} />)} />;
+  }
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={`${job.JobTitle} at ${job.Company} — ${pct}% match`}
-      onClick={open}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }}
-      // Press feedback (scale 0.97) comes from the global [role=button]:active
-      // rule. Hover changes border + shadow only — no jump.
-      style={{
-        position: 'relative',
-        display: 'flex', flexDirection: 'column', gap: 8,
-        height: '100%',
-        background: 'var(--bg-surface)', border: '1px solid var(--border)',
-        borderRadius: 12, padding: 14,
-        cursor: 'pointer', textAlign: 'left',
-        transition: 'border-color 0.16s ease, box-shadow 0.16s ease',
-      }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}
-    >
-      {/* Score badge — top-right corner */}
-      <span style={{
-        position: 'absolute', top: 12, right: 12,
-        fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.01em',
-        padding: '2px 8px', borderRadius: 999,
-        background: badge.bg, color: badge.fg,
-      }}>
-        {pct}%
-      </span>
-
-      {/* Title */}
-      <h3 style={{
-        margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)',
-        lineHeight: 1.3, paddingRight: 48,
-        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-      }}>
-        {job.JobTitle}
-      </h3>
-
-      {/* Company · Location — one muted line */}
-      {locationLine && (
-        <p style={{
-          margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
-          {locationLine}
-        </p>
-      )}
-
-      {/* Spacer pushes the skills/footer to the bottom so cards align */}
-      <div style={{ flex: 1 }} />
-
-      {/* Matched skills — green chips */}
-      {chips.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {chips.map(skill => (
-            <span key={skill} style={{
-              fontSize: '0.72rem', fontWeight: 600, padding: '2px 7px', borderRadius: 6,
-              background: 'var(--success-soft)', color: 'var(--success)',
-            }}>
-              {skill}
-            </span>
-          ))}
-          {extra > 0 && (
-            <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '2px 7px', color: 'var(--text-muted)' }}>
-              +{extra}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* X of Y matched — subtle footer */}
-      <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-        {job.matchedCount} of {job.totalSkillCount} skills matched
-      </p>
-    </div>
-  );
-}
-
-// ── Prompt Card ────────────────────────────────────────────────────────────────
-function PromptCard({ icon, title, body, linkTo, linkLabel }: {
-  icon: React.ReactNode; title: string; body: string; linkTo: string; linkLabel: string;
-}) {
-  return (
-    <div style={{
-      border: '1px solid var(--border)', borderRadius: 12,
-      background: 'var(--bg-surface)', padding: '32px 24px', textAlign: 'center',
-    }}>
-      <div style={{ marginBottom: 12 }}>{icon}</div>
-      <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
-        {title}
-      </h2>
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: 20, maxWidth: 400, margin: '0 auto 20px' }}>
-        {body}
-      </p>
-      <Link to={linkTo}><Button>{linkLabel}</Button></Link>
-    </div>
+    <MatchWorkspace
+      embedded={embedded}
+      title="Today's Matches"
+      subtitle="Jobs that list the skills on your profile. Refreshed daily, no AI involved."
+      profile={profile}
+      items={items}
+      loading={load === 'loading'}
+      state={state}
+      meta={meta?.totalJobsScanned ? `${meta.totalJobsScanned.toLocaleString()} jobs scanned · ${meta.userSkillCount ?? 0} skills on your profile` : undefined}
+      actions={
+        <button type="button" className="mx-btn" onClick={() => fetchMatches(true)} disabled={refreshing || load === 'loading'}>
+          {refreshing ? <Loader2 size={14} className="mx-spin" /> : <RefreshCw size={14} />}Refresh
+        </button>
+      }
+    />
   );
 }

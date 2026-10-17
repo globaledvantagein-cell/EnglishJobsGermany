@@ -71,7 +71,7 @@ export default function DesktopNav({ links, isActive, unreadFeedback, isPremium 
           path={path}
           label={label}
           active={isActive(path)}
-          badge={path === '/feedback' ? unreadFeedback : undefined}
+          badge={path === '/admin' ? unreadFeedback : undefined}
           premiumLocked={!isPremium && PREMIUM_NAV_PATHS.has(path)}
         />
       ))}

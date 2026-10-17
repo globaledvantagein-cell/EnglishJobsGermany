@@ -1,226 +1,203 @@
 'use client';
 
 /**
- * /smart-match — AI-ranked job recommendations. Admin-only while in testing.
+ * /smart-match (and /admin/smart-match) — AI-ranked job recommendations.
  *
- * If the user has a stored parsedProfile, shows a one-click "Find my matches"
- * button. Otherwise it links to the Profile page to complete the profile —
- * resume upload lives ONLY on the Profile page, never here.
+ * Loads the stored profile and the last cached Smart Match run in parallel.
+ * Results render through the shared MatchWorkspace; this page only decides
+ * which state to show and maps the API response to MatchItem[].
+ *
+ * Resume upload lives on the Profile page only — this page links there.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { AlertTriangle, Loader2, RotateCcw, Sparkles, Upload } from 'lucide-react';
 import { Link } from '@/compat/router';
-import { Sparkles, Upload, RotateCcw } from 'lucide-react';
-import { Container, PageHeader, Badge, Button, Alert } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { apiGet } from '../utils/jobApi';
-import { track } from '../utils/analytics';
 import { PremiumPitch } from '../components/UpgradeModal';
 import MatchProgress from '../components/MatchProgress';
-import ParsedProfileCard from '../components/ParsedProfileCard';
-import MatchResults from '../components/MatchResults';
-import {
-  matchResumeText,
-  ResumeMatchError,
-  type MatchResponse,
-} from '../utils/resumeMatchApi';
+import MatchWorkspace from '../components/matches/MatchWorkspace';
+import { StatePanel, fmtRelative } from '../components/matches/MatchParts';
+import { usePremiumGate } from '../components/matches/usePremiumGate';
+import { fromSmartMatch } from '../components/matches/matchItem';
+import { matchResumeText, ResumeMatchError, type MatchResponse, type ResumeProfile } from '../utils/resumeMatchApi';
 import { BRAND } from '../theme/brand';
 
-type Status = 'idle' | 'loading' | 'done' | 'error';
+type RunState = 'idle' | 'running' | 'error';
 
-function toUiError(err: unknown): { message: string } {
+interface MeResponse { parsedProfile?: ResumeProfile | null; profileUpdatedAt?: string; profileParsedAt?: string }
+interface CachedResponse extends Partial<MatchResponse> { cachedAt?: string; cached?: boolean }
+
+function errorMessage(err: unknown): string {
   if (err instanceof ResumeMatchError) {
-    if (err.code === 'RATE_LIMITED' || err.status === 429) return { message: 'Service is busy. Try again in a minute.' };
-    if (err.code === 'TIMEOUT' || err.status === 504) return { message: 'Scoring timed out. Please click "Try again".' };
-    if (err.status === 403) return { message: 'A Premium subscription is required to run Smart Match.' };
-    if (err.status === 401) return { message: 'Session expired. Please sign in again.' };
-    return { message: err.message || 'Something went wrong.' };
+    if (err.code === 'RATE_LIMITED' || err.status === 429) return 'The matching service is busy. Try again in a minute.';
+    if (err.code === 'TIMEOUT' || err.status === 504) return 'Scoring took too long. Please try again.';
+    if (err.status === 403) return 'A Premium subscription is required to run Smart Match.';
+    if (err.status === 401) return 'Your session expired. Please sign in again.';
+    return err.message || 'Something went wrong.';
   }
-  return { message: 'Network error — could not reach the server.' };
+  return 'Network error: could not reach the server.';
 }
 
-export default function SmartMatch() {
-  const { token, isLoading: authLoading, isPremium, isAdmin, usage } = useAuth();
-  const [hasProfile, setHasProfile] = useState<boolean | null>(null);
-  const [status, setStatus] = useState<Status>('idle');
+export default function SmartMatch({ embedded = false }: { embedded?: boolean }) {
+  const { token } = useAuth();
+  const gate = usePremiumGate('smart_match');
+
+  const [profile, setProfile] = useState<ResumeProfile | null | undefined>(undefined);
+  const [profileUpdatedAt, setProfileUpdatedAt] = useState<string | null>(null);
   const [result, setResult] = useState<MatchResponse | null>(null);
-  const [error, setError] = useState<{ message: string } | null>(null);
+  const [resultAt, setResultAt] = useState<string | null>(null);
+  const [run, setRun] = useState<RunState>('idle');
+  const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => { document.title = `Smart Match · ${BRAND.appName}`; }, []);
+  useEffect(() => { if (!embedded) document.title = `Smart Match · ${BRAND.appName}`; }, [embedded]);
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  // Funnel: a non-premium user hit the Smart Match premium wall.
   useEffect(() => {
-    if (!authLoading && (isAdmin || usage !== null) && !isPremium) {
-      track('premium_feature_blocked', { feature: 'smart_match' });
-    }
-  }, [authLoading, isAdmin, usage, isPremium]);
-
-  // Check if user has a stored profile + load cached results.
-  // Premium-gated: non-premium users see the pitch and never hit the
-  // (403-ing) resume-match endpoint. Mirrors the render gate below —
-  // admins are always premium; others need usage loaded first.
-  const premiumKnown = isAdmin || (usage !== null && isPremium);
-  useEffect(() => {
-    if (authLoading || !token || !premiumKnown) return;
-    apiGet<{ parsedProfile?: unknown }>('/api/auth/me')
-      .then(data => setHasProfile(!!data?.parsedProfile))
-      .catch(() => setHasProfile(false));
-
-    // Try loading cached Smart Match results
-    apiGet<{ success: boolean; results?: MatchResponse['results']; meta?: MatchResponse['meta']; profile?: MatchResponse['profile']; cached?: boolean }>('/api/jobs/admin/resume-match')
+    // Premium-gated: non-premium users never call the (403-ing) endpoints.
+    if (gate !== 'allowed' || !token) return;
+    apiGet<MeResponse>('/api/auth/me')
+      .then(me => {
+        setProfile(me?.parsedProfile ?? null);
+        setProfileUpdatedAt(me?.profileUpdatedAt ?? me?.profileParsedAt ?? null);
+      })
+      .catch(() => setProfile(null));
+    apiGet<CachedResponse>('/api/jobs/admin/resume-match')
       .then(data => {
-        if (data?.success && data.profile && Array.isArray(data.results)) {
-          setResult({ results: data.results, meta: data.meta, profile: data.profile } as MatchResponse);
-          setStatus('done');
+        if (data?.success && Array.isArray(data.results)) {
+          setResult(data as MatchResponse);
+          setResultAt(data.cachedAt ?? data.meta?.timestamp ?? null);
         }
       })
-      .catch(() => { /* no cache, that's fine */ });
-  }, [token, authLoading, premiumKnown]);
+      .catch(() => { /* no cached run yet */ });
+  }, [gate, token]);
 
-  const runMatch = async () => {
+  const runMatch = useCallback(async () => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-
-    setStatus('loading');
+    setRun('running');
     setError(null);
-    setResult(null);
-
     try {
       const data = await matchResumeText('USE_STORED_PROFILE', controller.signal);
-      if (!controller.signal.aborted) {
-        setResult(data);
-        setStatus('done');
-      }
+      if (controller.signal.aborted) return;
+      setResult(data);
+      setResultAt(new Date().toISOString());
+      setRun('idle');
     } catch (err) {
-      if (!controller.signal.aborted) {
-        setError(toUiError(err));
-        setStatus('error');
-      }
+      if (controller.signal.aborted) return;
+      setError(errorMessage(err));
+      setRun('error');
     }
-  };
+  }, []);
 
-  const handleRunMatch = () => runMatch();
-  const handleReset = () => { setStatus('idle'); setResult(null); setError(null); };
+  const cancelRun = () => { abortRef.current?.abort(); setRun('idle'); };
 
-  if (authLoading) {
+  const items = useMemo(() => (result?.results ?? []).map(fromSmartMatch), [result]);
+
+  if (gate === 'blocked') {
     return (
-      <Container style={{ padding: '40px 24px' }}>
-        <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
-      </Container>
+      <PremiumPitch
+        icon={<Sparkles size={26} />}
+        title="Smart Match — Premium"
+        description="AI-ranks every English-speaking role in Germany against your resume, so the best-fit jobs rise to the top."
+      />
     );
   }
 
-  // Premium gate — Smart Match is Premium-only. Wait until premium status is
-  // known (admins are always premium; others need the usage fetch), then either
-  // show the pitch (non-premium) or fall through to the real UI.
-  if (!isAdmin && usage === null) {
-    return (
-      <Container style={{ padding: '40px 24px' }}>
-        <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
-      </Container>
+  const loadingProfile = gate === 'loading' || profile === undefined;
+
+  // Results computed before the profile last changed (or for a different
+  // resume entirely) are misleading — say so instead of showing them silently.
+  const cachedName = result?.profile?.name?.trim().toLowerCase();
+  const currentName = profile?.name?.trim().toLowerCase();
+  const isStale = Boolean(result && resultAt && (
+    (profileUpdatedAt && new Date(profileUpdatedAt) > new Date(resultAt))
+    || (cachedName && currentName && cachedName !== currentName)
+  ));
+
+  const runButton = (
+    <button type="button" className="mx-btn" data-variant={result ? undefined : 'primary'} onClick={runMatch} disabled={run === 'running' || !profile}>
+      {run === 'running' ? <Loader2 size={14} className="mx-spin" /> : result ? <RotateCcw size={14} /> : <Sparkles size={14} />}
+      {result ? 'Run again' : 'Find my matches'}
+    </button>
+  );
+
+  let state: ReactNode = null;
+  if (loadingProfile) {
+    state = null; // the workspace shows skeleton rows
+  } else if (!profile) {
+    state = (
+      <StatePanel
+        icon={<Upload size={22} />}
+        title="Complete your profile first"
+        body="Smart Match scores jobs against your resume. Upload it on your Profile page and we'll build your skills profile automatically."
+        action={<Link to="/profile" className="mx-btn" data-variant="primary" data-size="lg"><Upload size={15} />Go to Profile</Link>}
+      />
     );
-  }
-  if (!isPremium) {
-    return (
-      <div style={{ background: 'var(--bg-base)', minHeight: '80vh' }}>
-        <Container style={{ maxWidth: 800, padding: '40px 24px 48px' }}>
-          <PremiumPitch
-            icon={<Sparkles size={26} />}
-            title="Smart Match — Premium"
-            description="AI-ranks every English-speaking role in Germany against your resume — skills, experience, and preferences — so the best-fit jobs rise to the top. Available with Premium."
-          />
-        </Container>
-      </div>
+  } else if (run === 'running') {
+    state = <div style={{ maxWidth: 640, margin: embedded ? 16 : '8px auto 0' }}><MatchProgress onCancel={cancelRun} /></div>;
+  } else if (run === 'error') {
+    state = (
+      <StatePanel
+        icon={<AlertTriangle size={22} />}
+        title="Matching failed"
+        body={error}
+        action={<button type="button" className="mx-btn" data-variant="primary" data-size="lg" onClick={runMatch}><RotateCcw size={15} />Try again</button>}
+      />
+    );
+  } else if (!result) {
+    state = (
+      <StatePanel
+        icon={<Sparkles size={22} />}
+        title="Your profile is ready"
+        body="We'll score every active English-speaking role in Germany against your skills, experience and preferences. It takes about 15 seconds."
+        action={<button type="button" className="mx-btn" data-variant="primary" data-size="lg" onClick={runMatch}><Sparkles size={15} />Find my matches</button>}
+      />
+    );
+  } else if (items.length === 0) {
+    state = (
+      <StatePanel
+        icon={<Sparkles size={22} />}
+        title="No strong matches right now"
+        body={result.meta?.afterHardFilter === 0
+          ? 'No active jobs passed the first filter for this profile. This happens with very niche or senior profiles.'
+          : 'We scored the available jobs but none were a meaningful fit. New jobs arrive daily, so try again tomorrow.'}
+        action={runButton}
+      />
     );
   }
 
-  if (hasProfile === null) {
-    return (
-      <Container style={{ padding: '40px 24px' }}>
-        <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
-      </Container>
-    );
-  }
+  const topScore = items.reduce((max, i) => Math.max(max, i.score), 0);
+  const banner = (isStale || (items.length > 0 && topScore < 50)) && run === 'idle' ? (
+    <div className="mx-banner" role="status">
+      <AlertTriangle size={16} />
+      <span style={{ fontSize: '0.85rem', flex: 1 }}>
+        {isStale
+          ? <>These results are from <strong>{fmtRelative(resultAt)}</strong>, before your profile last changed. Run again to match your current profile.</>
+          : <>Match quality is low for this profile: the best score is {topScore}. A more detailed resume usually helps.</>}
+      </span>
+      {isStale && runButton}
+    </div>
+  ) : null;
+
+  const meta = result?.meta && run === 'idle'
+    ? `Run ${fmtRelative(resultAt) ?? ''} · ${result.meta.totalJobsSearched.toLocaleString()} jobs searched · ${result.meta.afterHardFilter} shortlisted`
+    : undefined;
 
   return (
-    <div style={{ background: 'var(--bg-base)', minHeight: '80vh' }}>
-      <Container style={{ maxWidth: 800, padding: '24px 24px 48px' }}>
-        <PageHeader
-          label="ENGLISH JOBS IN GERMANY"
-          title="Smart Match"
-          subtitle="AI-ranked jobs matched to your skills, experience, and preferences."
-          actions={<Badge variant="primary">Premium</Badge>}
-        />
-
-        {status === 'loading' && <MatchProgress />}
-
-        {status === 'error' && (
-          <div style={{ marginBottom: 16 }}>
-            <Alert type="error">{error?.message}</Alert>
-            <Button variant="ghost" size="sm" onClick={handleReset} style={{ marginTop: 8 }}>
-              <RotateCcw size={14} /> Try again
-            </Button>
-          </div>
-        )}
-
-        {status === 'done' && result && (
-          <>
-            {result.profile && <ParsedProfileCard profile={result.profile} />}
-            <div style={{ marginTop: 16 }}>
-              <MatchResults data={result} />
-            </div>
-            <div style={{ marginTop: 16, textAlign: 'center' }}>
-              <Button variant="ghost" size="sm" onClick={handleReset}>
-                <RotateCcw size={14} /> Run again
-              </Button>
-            </div>
-          </>
-        )}
-
-        {status === 'idle' && (
-          <>
-            {hasProfile ? (
-              <div style={{
-                border: '1px solid var(--border)', borderRadius: 12,
-                background: 'var(--bg-surface)', padding: '32px 24px', textAlign: 'center',
-              }}>
-                <Sparkles size={32} style={{ color: 'var(--primary)', marginBottom: 12 }} />
-                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
-                  Your profile is ready
-                </h2>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: 20, maxWidth: 400, margin: '0 auto 20px' }}>
-                  We'll match your skills and experience against {'>'}2,000 English-speaking roles in Germany.
-                </p>
-                <Button onClick={handleRunMatch}>
-                  <Sparkles size={16} /> Find my matches
-                </Button>
-                <p style={{ marginTop: 12, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  Resume changed?{' '}
-                  <Link to="/profile" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>
-                    Update on Profile
-                  </Link>
-                </p>
-              </div>
-            ) : (
-              <div style={{
-                border: '1px solid var(--border)', borderRadius: 12,
-                background: 'var(--bg-surface)', padding: '32px 24px', textAlign: 'center',
-              }}>
-                <Upload size={32} style={{ color: 'var(--text-muted)', marginBottom: 12 }} />
-                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
-                  Complete your profile first
-                </h2>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: 20, maxWidth: 400, margin: '0 auto 20px' }}>
-                  Upload your resume on your Profile page to build your profile and enable matching.
-                </p>
-                <Link to="/profile"><Button><Upload size={16} /> Go to Profile</Button></Link>
-              </div>
-            )}
-          </>
-        )}
-      </Container>
-    </div>
+    <MatchWorkspace
+      embedded={embedded}
+      title="Smart Match"
+      subtitle="AI-ranked jobs matched to your skills, experience and preferences."
+      profile={profile ?? null}
+      items={items}
+      loading={loadingProfile}
+      state={state}
+      banner={banner}
+      meta={meta}
+      actions={result && run !== 'running' ? runButton : undefined}
+    />
   );
 }

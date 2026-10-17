@@ -6,7 +6,8 @@ import { ThemeProvider } from '../theme/ThemeProvider';
 import { AuthProvider } from '../context/AuthContext';
 import { AppliedJobsProvider } from '../context/AppliedJobsContext';
 import { SavedJobsProvider } from '../context/SavedJobsContext';
-import PostHogInit from './PostHogInit';
+import TrackingInit from './TrackingInit';
+import CookieConsent from './CookieConsent';
 import GAPageView from './GAPageView';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
@@ -26,16 +27,15 @@ export default function Providers({ children }: { children: ReactNode }) {
         <AuthProvider>
           <AppliedJobsProvider>
             <SavedJobsProvider>
-              <PostHogInit />
+              <TrackingInit />
               {/* GAPageView reads useSearchParams, which needs a Suspense
                   boundary during prerender. */}
               <Suspense fallback={null}>
                 <GAPageView />
               </Suspense>
               {children}
-              {/* <CookieConsent /> intentionally not rendered — tracking is
-                  ungated (see utils/consent.ts). The component and the consent
-                  helpers are kept intact so this is a one-line re-enable. */}
+              {/* Asks once per device; analytics load only after "Accept". */}
+              <CookieConsent />
             </SavedJobsProvider>
           </AppliedJobsProvider>
         </AuthProvider>
