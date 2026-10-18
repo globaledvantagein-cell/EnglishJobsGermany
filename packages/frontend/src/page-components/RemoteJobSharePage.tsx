@@ -14,7 +14,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import RemoteJobDetail from '../components/RemoteJobDetail';
-import JobDetailSkeleton from '../components/JobDetailSkeleton';
+import { JobDetailSkeleton } from '../components/job-detail';
+import { ArrowLeft } from 'lucide-react';
 import { EmptyState } from '../components/ui';
 import { fetchRemoteJobDetail } from '../utils/remoteJobApi';
 import type { IJob } from '../types';
@@ -46,11 +47,10 @@ export default function RemoteJobSharePage({ jobId }: { jobId: string }) {
   }, [jobId]);
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: 'clamp(16px,3vw,28px)' }}>
-      <nav aria-label="Breadcrumb" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 14 }}>
-        <Link href="/" style={{ color: 'inherit' }}>Home</Link>
-        {' › '}
-        <Link href="/remote-jobs" style={{ color: 'inherit' }}>Remote jobs</Link>
+    <div className="page-wash" data-wash="remote">
+    <div className="jd">
+      <nav className="jd-top" aria-label="Breadcrumb">
+        <Link href="/remote-jobs"><ArrowLeft size={15} /> Remote jobs</Link>
       </nav>
 
       {loading && <JobDetailSkeleton />}
@@ -69,6 +69,7 @@ export default function RemoteJobSharePage({ jobId }: { jobId: string }) {
           <RemoteJobDetail job={job} />
         </div>
       )}
+    </div>
     </div>
   );
 }

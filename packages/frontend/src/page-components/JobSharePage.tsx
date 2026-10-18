@@ -18,22 +18,20 @@
  * signed in.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams, useNavigate } from '@/compat/router';
-import { ArrowLeft, Briefcase } from 'lucide-react';
+import { Link, useParams } from '@/compat/router';
+import { Briefcase } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { fetchJobDetailCached, ApiError } from '../utils/jobApi';
 import PublicJobDetail from '../components/PublicJobDetail';
-import JobDetailSkeleton from '../components/JobDetailSkeleton';
+import { JobDetailSkeleton } from '../components/job-detail';
 import SignupGate from '../components/SignupGate';
 import ViewAllowanceNotice from '../components/ViewAllowanceNotice';
-import { Container } from '../components/ui';
 import { ErrorState, classifyError } from '../components/ui/ErrorState';
 import { BRAND } from '../theme/brand';
 import type { IJob, GatedTeaser, GateUsage } from '../types';
 
 export default function JobSharePage({ initialJob = null }: { initialJob?: IJob | null } = {}) {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const { isAuthenticated, isPremium, isLoading: authLoading } = useAuth();
 
   // Seed from the server-fetched job so the first paint (and crawler HTML) shows
@@ -203,40 +201,11 @@ export default function JobSharePage({ initialJob = null }: { initialJob?: IJob 
     return null;
   };
 
-  // If the user arrived here from within the app (e.g. clicked a title on
-  // /jobs), window.history.length > 1. navigate(-1) restores the previous
-  // page WITH its scroll position and React state intact.
-  // If they landed directly (shared link, new tab), fall back to /jobs.
-  const handleBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate('/jobs');
-    }
-  };
-
+  // The server page renders the breadcrumb (Home › Category › Job) above
+  // this frame, so there is no separate back link here.
   return (
-    <div style={{ background: 'var(--bg-base)', minHeight: '80vh' }}>
-      <Container style={{ maxWidth: 1000, padding: '24px 24px 48px' }}>
-        {/* Back link — uses browser back to preserve scroll position */}
-        <button
-          onClick={handleBack}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            fontSize: '0.86rem', fontWeight: 600,
-            color: 'var(--text-muted)', textDecoration: 'none',
-            marginBottom: 20, transition: 'color 0.18s',
-            background: 'none', border: 'none', cursor: 'pointer',
-            padding: 0, fontFamily: 'inherit',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
-          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
-        >
-          <ArrowLeft size={15} /> Back to all jobs
-        </button>
-
-        {renderContent()}
-      </Container>
+    <div className="jd">
+      {renderContent()}
     </div>
   );
 }

@@ -382,8 +382,7 @@ export default function CompanyDirectory({ header }: { header?: ReactNode }) {
 
   return (
     <div style={{ background: 'var(--paper)', minHeight: '100vh', paddingBottom: 48 }}>
-      <div style={{
-        background: 'linear-gradient(180deg, rgba(147,197,253,0.18) 0%, rgba(134,239,172,0.10) 50%, transparent 100%)',
+      <div className="hero-wash" data-wash="directory" style={{
         paddingTop: 60, paddingBottom: 48, marginBottom: 32, textAlign: 'center',
       }}>
         {header}

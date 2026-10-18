@@ -114,6 +114,11 @@ app.listen(PORT, async () => {
         } catch (remoteErr) {
             console.warn('[remoteJobsCache] init failed:', remoteErr.message);
         }
+        // Smart Match's meaning-based selection: embed jobs gradually in the
+        // background so user-facing runs find their vectors cached.
+        const { startEmbeddingWarmer } = await import('./resume-matcher/semanticSelection.js');
+        startEmbeddingWarmer();
+
         console.log(`✅ API Server is running on http://localhost:${PORT}`);
         console.log("Setting up scheduled tasks...");
 

@@ -1,12 +1,13 @@
-import JobDetailSkeleton from '@/components/JobDetailSkeleton';
+import { JobDetailSkeleton } from '@/components/job-detail';
 
-// Mirrors RemoteJobSharePage's outer container so the skeleton → page swap
-// does not shift layout.
+// Same .jd frame as RemoteJobSharePage so the skeleton → page swap does not shift layout.
 export default function Loading() {
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: 'clamp(16px,3vw,28px)' }}>
-      <div className="skeleton" style={{ height: 14, width: 140, marginBottom: 14 }} />
+    <div className="page-wash" data-wash="remote">
+    <div className="jd">
+      <div className="jd-top"><div className="skeleton" style={{ height: 14, width: 110, borderRadius: 6 }} /></div>
       <JobDetailSkeleton />
+    </div>
     </div>
   );
 }

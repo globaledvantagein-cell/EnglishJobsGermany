@@ -1,3 +1,5 @@
+export const FEEDBACK_CATEGORIES = ['bug', 'idea', 'other'];
+
 const feedbackSchemaDefinition = {
     name: { type: String, default: 'Anonymous' },
     email: { type: String, default: null },
@@ -7,6 +9,8 @@ const feedbackSchemaDefinition = {
     userId: { type: String, default: null },
 
     source: { type: String, default: 'footer' },
+    category: { type: String, default: 'other' }, // bug | idea | other
+    page: { type: String, default: null },        // path the widget was opened on
     userAgent: { type: String, default: null },
     ipHash: { type: String, default: null },
 
@@ -24,6 +28,8 @@ export function createFeedback(data) {
         wordCount: String(data.message || '').trim().split(/\s+/).filter(Boolean).length,
         userId: data.userId || null,
         source: data.source || 'footer',
+        category: FEEDBACK_CATEGORIES.includes(data.category) ? data.category : 'other',
+        page: typeof data.page === 'string' && data.page.startsWith('/') ? data.page.substring(0, 300) : null,
         userAgent: data.userAgent || null,
         ipHash: data.ipHash || null,
         status: 'unread',

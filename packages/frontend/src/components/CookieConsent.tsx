@@ -38,6 +38,15 @@ export default function CookieConsent() {
     return () => window.removeEventListener(OPEN_COOKIE_SETTINGS_EVENT, reopen);
   }, []);
 
+  // Lets other fixed bottom-corner UI (the feedback button) step aside while
+  // the banner is the page's bottom layer.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (visible) root.dataset.cookieBanner = 'open';
+    else delete root.dataset.cookieBanner;
+    return () => { delete root.dataset.cookieBanner; };
+  }, [visible]);
+
   if (!visible) return null;
 
   const decide = (choice: ConsentChoice) => {

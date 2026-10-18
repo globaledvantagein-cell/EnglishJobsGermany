@@ -180,7 +180,7 @@ export default function JobBrowsePage({
   };
 
   return (
-    <div style={{ background: 'var(--bg-base)', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <div className="page-wash" data-wash={variant === 'remote' ? 'remote' : 'jobs'} style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <div className="dashboard-shell" style={{ paddingTop: 10 }}>
         {mobileFilters}
 

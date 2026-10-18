@@ -4,6 +4,7 @@ import { Link } from '@/compat/router';
 import { LogOut, User as UserIcon, X } from 'lucide-react';
 import { Badge, Button } from '../ui';
 import { USER_MENU_LINKS } from './navLinks';
+import BrandLogo from '../BrandLogo';
 
 interface User {
   name: string;
@@ -61,12 +62,7 @@ export default function MobileDrawer({
         aria-label="Navigation menu"
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 16px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <img src="/logo.jpeg" alt="English Jobs in Germany" style={{ height: 26, width: 'auto', display: 'block' }} />
-            <span style={{ fontFamily: "'Playfair Display',serif", fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              English <span style={{ color: 'var(--primary)' }}>Jobs</span>
-            </span>
-          </div>
+          <BrandLogo size="sm" href={null} />
           <button
             onClick={onClose}
             aria-label="Close navigation menu"

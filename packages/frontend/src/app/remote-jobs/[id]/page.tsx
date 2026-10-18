@@ -11,7 +11,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params;
   return {
-    title: 'Remote job — English Jobs Germany',
+    title: 'Remote job', // the root layout's title template appends the brand
     alternates: alternatesFor(`/remote-jobs/${id}`),
   };
 }

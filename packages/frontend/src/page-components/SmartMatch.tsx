@@ -198,6 +198,8 @@ export default function SmartMatch({ embedded = false }: { embedded?: boolean })
       banner={banner}
       meta={meta}
       actions={result && run !== 'running' ? runButton : undefined}
+      source="smart"
+      listId={resultAt ? `smart:${resultAt}` : undefined}
     />
   );
 }

@@ -1,101 +1,89 @@
-// ─── Resume Matcher — Hard Filter ──────────────────────────────────────────────
+// ─── Resume Matcher — Candidate Selection ──────────────────────────────────────
 //
-// Step 2: 0 AI calls, <50ms. Reads from RAM cache and applies hard filters.
-// Uses german_level_detail and visa_sponsorship from parsedRequirements for
-// smarter filtering when available.
+// Step 2: chooses which jobs the AI scores. ~70ms of deterministic scoring,
+// plus at most 2 embedding calls (1 once job vectors are cached).
+//
+// The shared fit engine (src/matching) scores every cached job against the
+// profile — rarity-weighted skills, experience, seniority, role, preferences —
+// and drops jobs whose German or visa requirement the candidate cannot meet.
+// The best MAX_RESULTS by fit go on to Gemini.
+//
+// This replaced "filter, then keep the 50 NEWEST": with ~180 jobs passing the
+// filters, a strong match only a few weeks old was never scored at all.
 
 import { getAllJobs } from '../cache/index.js';
+import { buildCandidate, feedbackMultiplier, isHidden, scoreJobFit } from '../matching/index.js';
+import { applySemanticSelection } from './semanticSelection.js';
 
-const DOMAIN_TO_CATEGORIES = {
-    'Software Engineering': ['software engineering', 'hardware & systems', 'cybersecurity', 'ai / ml', 'it & enterprise systems'],
-    'Engineering':          ['software engineering', 'hardware & systems', 'cybersecurity', 'ai / ml', 'it & enterprise systems'],
-    'Marketing':            ['marketing & growth', 'localization', 'solutions & pre-sales'],
-    'Sales':                ['sales', 'solutions & pre-sales', 'customer success & support'],
-    'Finance':              ['finance & accounting'],
-    'HR':                   ['hr & people'],
-    'Design':               ['design', 'gaming & entertainment'],
-    'Data':                 ['data & analytics', 'ai / ml', 'research & clinical'],
-    'Product':              ['product management'],
-    'Operations':           ['operations & strategy', 'supply chain & manufacturing', 'retail & facilities', 'administration'],
-    'Legal':                ['legal & compliance', 'trust & safety'],
-    'Other':                [],
-};
+// Same AI budget as before: two Pass A batches of 25.
+const MAX_RESULTS = 50;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_PER_COMPANY = 3;
 
-const GERMAN_SUFFICIENT = ['fluent', 'native', 'professional'];
-const MIN_RESULTS_BEFORE_BROADENING = 20;
-const MAX_RESULTS = 50; // Cap to 50 jobs (2 batches of 25) so Pass A runs in < 15s
-
-/**
- * Checks if a job's German requirement is compatible with the candidate.
- * Uses parsedRequirements.german_level_detail when available for nuance,
- * falls back to the binary GermanRequired field.
- */
-function isGermanCompatible(job, candidateGermanLevel) {
-    const isGermanSufficient = GERMAN_SUFFICIENT.includes(candidateGermanLevel);
-
-    // If candidate has fluent+ German, everything passes
-    if (isGermanSufficient) return true;
-
-    // Check parsedRequirements for nuance
-    const detail = job.parsedRequirements?.german_level_detail?.toLowerCase() || '';
-
-    // "nice to have" / "preferred" / "von Vorteil" = not a hard requirement
-    if (detail.includes('nice to have') || detail.includes('preferred') ||
-        detail.includes('von vorteil') || detail.includes('not mentioned')) {
-        return true;
-    }
-
-    // If parsedRequirements says it's required (C1/B2/etc required/mandatory)
-    if (detail.includes('required') || detail.includes('mandatory') ||
-        detail.includes('erforderlich') || detail.includes('c1') || detail.includes('c2')) {
-        return false;
-    }
-
-    // Fall back to binary GermanRequired field
-    return !job.GermanRequired;
+/** "Software Engineer, Platform - Berlin, Germany (m/f/d)" → "software engineer, platform". */
+function baseTitle(title) {
+    return String(title || '')
+        .toLowerCase()
+        .replace(/\((?:[mwfdx]\s*\/\s*)+[mwfdx]\)|\(all genders?\)/g, '')
+        .replace(/\s+[-–—|@]\s+[^-–—|@]*(germany|deutschland|berlin|munich|münchen|hamburg|frankfurt|cologne|köln|düsseldorf|stuttgart|remote)[^-–—|@]*$/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
 }
 
-export function filterJobs(profile) {
-    const allJobs = getAllJobs();
+/**
+ * Selection-only nudge towards fresh postings: an old posting that is still
+ * "active" (the feed holds some from years ago) rarely has a live hiring
+ * process behind it. Does not change the score the user sees.
+ */
+function freshness(job) {
+    const posted = new Date(job.PostedDate || job.scrapedAt || 0).getTime();
+    if (!posted) return 0.95;
+    const ageDays = (Date.now() - posted) / DAY_MS;
+    if (ageDays <= 30) return 1;
+    if (ageDays <= 90) return 0.95;
+    if (ageDays <= 365) return 0.85;
+    return 0.7;
+}
 
-    const candidateGermanLevel = profile.languages
-        ?.find(l => l.language?.toLowerCase() === 'german')?.proficiency || 'none';
+/**
+ * @param {object} profile  parsed profile; `_jobPreferences` is merged in by the orchestrator
+ * @returns {{ jobs: object[], eligibleCount: number }}
+ *   jobs: shallow copies carrying `_fit` (score, dimensions, missing skills),
+ *   best fit first; eligibleCount: how many jobs passed the hard requirements
+ *   and shared anything with the profile.
+ */
+export async function filterJobs(profile) {
+    const candidate = buildCandidate(profile, profile._jobPreferences);
+    const scored = [];
 
-    // 1. German + visa filter
-    let filtered = allJobs.filter(job => {
-        // German compatibility check
-        if (!isGermanCompatible(job, candidateGermanLevel)) return false;
-
-        // Visa filter: if candidate needs visa and job explicitly doesn't sponsor
-        if (profile.visa_required === true && job.parsedRequirements?.visa_sponsorship === 'not_available') {
-            return false;
-        }
-
-        return true;
-    });
-
-    // 2. Domain/category narrowing
-    const matchingCategories = DOMAIN_TO_CATEGORIES[profile.domain] || [];
-    if (matchingCategories.length > 0) {
-        const categoryFiltered = filtered.filter(job => {
-            const jobCat = (job.Category || '').toLowerCase().trim();
-            return matchingCategories.some(cat => jobCat === cat || jobCat.startsWith(cat) || cat.startsWith(jobCat));
-        });
-        // Only apply if it doesn't reduce too much
-        if (categoryFiltered.length >= MIN_RESULTS_BEFORE_BROADENING) {
-            filtered = categoryFiltered;
-        }
+    const feedback = profile._feedback || null;
+    for (const job of getAllJobs()) {
+        if (isHidden(feedback, job)) continue;
+        const fit = scoreJobFit(candidate, job);
+        if (fit) scored.push({ ...job, _fit: fit, _selection: fit.score * freshness(job) * feedbackMultiplier(feedback, job) });
     }
 
-    // 3. Cap at MAX_RESULTS, newest first
-    if (filtered.length > MAX_RESULTS) {
-        filtered.sort((a, b) => {
-            const da = a.PostedDate ? new Date(a.PostedDate).getTime() : 0;
-            const db = b.PostedDate ? new Date(b.PostedDate).getTime() : 0;
-            return db - da;
-        });
-        filtered = filtered.slice(0, MAX_RESULTS);
-    }
+    scored.sort((a, b) => b._selection - a._selection);
 
-    return filtered;
+    // Meaning-based re-rank of the best candidates (fails open to the above).
+    const ranked = await applySemanticSelection(profile, scored);
+
+    // Diversity: the same role posted once per city ("Software Engineer,
+    // Platform - Berlin / Hamburg / …") would otherwise fill the AI budget and
+    // the results list with one opening. Keep the best-fitting copy of each
+    // company + title, and at most MAX_PER_COMPANY jobs per company.
+    const picked = [];
+    const seenRoles = new Set();
+    const perCompany = new Map();
+    for (const job of ranked) {
+        if (picked.length >= MAX_RESULTS) break;
+        const company = String(job.Company || '').toLowerCase().trim();
+        const role = `${company}|${baseTitle(job.JobTitle)}`;
+        if (seenRoles.has(role)) continue;
+        if ((perCompany.get(company) || 0) >= MAX_PER_COMPANY) continue;
+        seenRoles.add(role);
+        perCompany.set(company, (perCompany.get(company) || 0) + 1);
+        picked.push(job);
+    }
+    return { jobs: picked, eligibleCount: scored.length };
 }

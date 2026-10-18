@@ -10,7 +10,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
   useEffect(() => { console.error('[route error]', error); }, [error]);
   const { kind, hint } = classifyError(error);
   return (
-    <div style={{ background: 'var(--bg-base)', minHeight: '70vh', display: 'flex', alignItems: 'center' }}>
+    <div className="page-wash" data-wash="neutral" style={{ minHeight: '70vh', display: 'flex', alignItems: 'center' }}>
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '40px 20px', width: '100%' }}>
         <ErrorState
           kind={kind}

@@ -1,0 +1,151 @@
+/* ─── SEO listing pages (/category/[slug], /city/[slug]) ──────────────────────
+ * Layout after Wellfound role pages + Jobright result lists (studied with REA):
+ *   header (h1, live summary, intro) · quick-filter chips
+ *   job rows | sticky sidebar (by city, companies) · FAQ · related links
+ */
+.ls { width: 100%; max-width: 1160px; margin: 0 auto; padding: 20px 24px 72px; color: var(--text-primary); }
+.ls-crumbs { font-size: 0.8rem; color: var(--text-secondary); }
+.ls-crumbs a { color: inherit; }
+.ls-head { margin-top: 14px; padding: 24px 28px; border: 1px solid var(--border); border-radius: 20px; background: var(--bg-surface); }
+.ls-title { margin: 0; font-size: clamp(1.7rem, 3.6vw, 2.6rem); font-weight: 800; letter-spacing: -0.035em; line-height: 1.1; }
+.ls-title em { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 500; color: var(--primary); }
+.ls-intro { margin: 10px 0 0; max-width: 70ch; font-size: 1rem; line-height: 1.7; color: var(--text-secondary); }
+.ls-intro a { color: var(--text-primary); font-weight: 600; text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+.ls-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.ls-chip { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg-base); color: var(--text-primary); font-size: 0.86rem; font-weight: 650; text-decoration: none; }
+.ls-chip span { font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.ls-chip[data-primary='true'] { background: var(--primary); border-color: var(--primary); color: #fff; }
+.ls-chip[data-primary='true'] span { color: rgba(255,255,255,0.85); }
+
+.ls-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; margin-top: 24px; align-items: start; }
+.ls-list-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.ls-list-head h2 { margin: 0; font-size: 1.15rem; font-weight: 800; }
+.ls-list-head p { margin: 0; font-size: 0.85rem; color: var(--text-secondary); }
+.ls-list { display: flex; flex-direction: column; gap: 10px; }
+.ls-job { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 16px 18px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-surface); color: inherit; text-decoration: none; }
+.ls-job-main { min-width: 0; }
+.ls-job-title { margin: 0; font-size: 1rem; font-weight: 750; line-height: 1.35; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.ls-job-meta { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 4px 0 0; font-size: 0.85rem; color: var(--text-secondary); }
+.ls-job-company { color: var(--text-primary); font-weight: 600; }
+.ls-job-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ls-tag { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg-surface-2); font-size: 0.74rem; font-weight: 650; color: var(--text-secondary); }
+.ls-tag[data-tone='ok'] { border-color: transparent; background: var(--success-soft); color: var(--success); }
+.ls-job-posted { font-size: 0.78rem; color: var(--text-secondary); white-space: nowrap; padding-top: 2px; }
+.ls-more { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; min-height: 48px; padding: 10px 18px; border-radius: 12px; background: var(--primary); color: #fff; font-weight: 750; text-align: center; line-height: 1.3; text-decoration: none; }
+.ls-more svg { flex-shrink: 0; }
+
+
+.ls-aside { position: sticky; top: 84px; display: flex; flex-direction: column; gap: 14px; }
+.ls-card { padding: 18px; border: 1px solid var(--border); border-radius: 16px; background: var(--bg-surface); }
+.ls-card h2 { margin: 0 0 12px; font-size: 0.76rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
+.ls-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.ls-rows a { display: grid; grid-template-columns: minmax(0, 1fr) 48px 40px; align-items: center; gap: 10px; padding: 7px 8px; margin: 0 -8px; border-radius: 9px; font-size: 0.9rem; font-weight: 650; color: var(--text-primary); text-decoration: none; }
+.ls-rows a[data-nobar='true'] { grid-template-columns: minmax(0, 1fr) auto; }
+.ls-bar { height: 6px; border-radius: 999px; background: var(--bg-surface-2); overflow: hidden; }
+.ls-bar span { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
+.ls-count { text-align: right; font-size: 0.82rem; font-weight: 700; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.ls-company { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ls-company span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (hover: hover) and (pointer: fine) {
+  .ls-job:hover { border-color: var(--primary); }
+  .ls-job:hover .ls-job-title { color: var(--primary); }
+  .ls-rows a:hover { background: var(--bg-surface-2); }
+  .ls-chip:hover { border-color: var(--primary); }
+}
+@media (max-width: 960px) {
+  .ls-grid { grid-template-columns: minmax(0, 1fr); }
+  .ls-aside { position: static; }
+}
+@media (max-width: 640px) {
+  .ls { padding: 14px 14px 64px; }
+  .ls-head { padding: 20px 18px; border-radius: 16px; }
+  .ls-chips { flex-wrap: nowrap; overflow-x: auto; margin-right: -18px; padding-right: 18px; scrollbar-width: none; }
+  .ls-chip { flex-shrink: 0; }
+  .ls-job { grid-template-columns: 40px minmax(0, 1fr); padding: 14px; gap: 12px; }
+  .ls-job-posted { grid-column: 2; padding-top: 0; margin-top: -4px; }
+}
+
+/* ── Header row with the drawer button ─────────────────────────────────── */
+.ls-head-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.ls-intro strong { color: var(--text-primary); }
+.ls-drawer-btn {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px;
+  border-radius: 10px; border: 1px solid var(--border-strong); background: var(--bg-surface); color: var(--text-primary);
+  font: inherit; font-size: 0.86rem; font-weight: 700; cursor: pointer;
+}
+.ls-drawer-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+/* ── Side drawer (native popover) ──────────────────────────────────────── */
+.ls-drawer {
+  position: fixed; inset: 0 0 0 auto; margin: 0; width: min(420px, 100vw); height: 100dvh; max-height: none;
+  padding: 20px 22px 28px; border: none; border-left: 1px solid var(--border); background: var(--bg-surface);
+  color: var(--text-primary); box-shadow: -18px 0 48px rgba(0, 0, 0, 0.16); overflow-y: auto;
+}
+.ls-drawer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.ls-drawer-title { margin: 0; font-size: 1.05rem; font-weight: 800; }
+.ls-drawer-close { display: grid; place-items: center; width: 36px; height: 36px; border: none; border-radius: 10px; background: var(--bg-surface-2); color: var(--text-secondary); cursor: pointer; }
+.ls-drawer-label { margin: 18px 0 6px; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
+.ls-drawer-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.ls-drawer-list[data-cols='2'] { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
+.ls-drawer-list a { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 8px; margin: 0 -8px; border-radius: 9px; font-size: 0.9rem; font-weight: 600; color: var(--text-primary); text-decoration: none; }
+.ls-drawer-list a:hover { background: var(--bg-surface-2); color: var(--primary); }
+.ls-drawer-list a[aria-current='page'] { background: var(--primary-soft); color: var(--primary); }
+.ls-drawer-count { flex-shrink: 0; font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+/* ── "Show N more" fold ────────────────────────────────────────────────── */
+.ls-fold { margin-top: 10px; }
+.ls-fold > summary {
+  list-style: none; display: flex; align-items: center; justify-content: center; height: 44px; border-radius: 12px;
+  border: 1px dashed var(--border-strong); color: var(--text-primary); font-weight: 700; font-size: 0.9rem; cursor: pointer;
+}
+.ls-fold > summary::-webkit-details-marker { display: none; }
+.ls-fold > summary:hover { border-color: var(--primary); color: var(--primary); }
+.ls-fold .ls-fold-less, .ls-fold[open] .ls-fold-more { display: none; }
+.ls-fold[open] .ls-fold-less { display: inline; }
+.ls-fold[open] > summary { order: 2; margin-top: 10px; }
+.ls-fold[open] { display: flex; flex-direction: column; }
+.ls-fold > .ls-list { margin-top: 10px; }
+
+/* ── Sidebar tabs (CSS-only: radio inputs + labels) ────────────────────── */
+.ls-tabs { padding: 6px 18px 18px; }
+.ls-tab-input { position: absolute; opacity: 0; pointer-events: none; }
+.ls-tab-labels { display: flex; gap: 4px; margin: 0 -10px 14px; padding: 4px; border-bottom: 1px solid var(--border); }
+.ls-tab-labels label {
+  flex: 1; padding: 0 4px; white-space: nowrap; display: flex; align-items: center; justify-content: center; height: 38px; border-radius: 9px;
+  font-size: 0.86rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; position: relative;
+}
+.ls-tab-labels label:hover { color: var(--text-primary); }
+.ls-tab-panel { display: none; }
+/* Generic: the Nth radio input shows the Nth <section> panel and highlights
+   the Nth label (inputs and panels are counted per element type). */
+.ls-tab-input:nth-of-type(1):checked ~ section.ls-tab-panel:nth-of-type(1),
+.ls-tab-input:nth-of-type(2):checked ~ section.ls-tab-panel:nth-of-type(2),
+.ls-tab-input:nth-of-type(3):checked ~ section.ls-tab-panel:nth-of-type(3),
+.ls-tab-input:nth-of-type(4):checked ~ section.ls-tab-panel:nth-of-type(4) { display: block; }
+.ls-tabs:has(.ls-tab-input:nth-of-type(1):checked) .ls-tab-labels label:nth-child(1),
+.ls-tabs:has(.ls-tab-input:nth-of-type(2):checked) .ls-tab-labels label:nth-child(2),
+.ls-tabs:has(.ls-tab-input:nth-of-type(3):checked) .ls-tab-labels label:nth-child(3),
+.ls-tabs:has(.ls-tab-input:nth-of-type(4):checked) .ls-tab-labels label:nth-child(4) { color: var(--primary); background: var(--primary-soft); }
+/* Long-form prose in a tab (city guides). */
+.ls-prose p { margin: 0 0 12px; font-size: 0.86rem; line-height: 1.65; color: var(--text-secondary); }
+.ls-prose p:last-child { margin-bottom: 0; }
+.ls-tabs:has(.ls-tab-input:focus-visible) .ls-tab-labels { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 10px; }
+.ls-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Compact FAQ inside the sidebar tab. */
+.ls-mini-faq details { border-bottom: 1px solid var(--border); }
+.ls-mini-faq details:last-child { border-bottom: none; }
+.ls-mini-faq summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; padding: 11px 0; font-size: 0.88rem; font-weight: 700; line-height: 1.4; color: var(--text-primary); }
+.ls-mini-faq summary::-webkit-details-marker { display: none; }
+.ls-mini-faq summary::after { content: '+'; flex-shrink: 0; font-weight: 600; color: var(--text-secondary); }
+.ls-mini-faq details[open] summary::after { content: '−'; }
+.ls-mini-faq summary:hover { color: var(--primary); }
+.ls-mini-faq p { margin: 0 0 12px; font-size: 0.84rem; line-height: 1.6; color: var(--text-secondary); }
+
+@media (max-width: 640px) {
+  .ls-head-top { flex-direction: column; gap: 12px; }
+  .ls-drawer-btn { align-self: flex-start; }
+  .ls-drawer { width: 100vw; border-left: none; }
+  .ls-list-head p { display: none; }
+}

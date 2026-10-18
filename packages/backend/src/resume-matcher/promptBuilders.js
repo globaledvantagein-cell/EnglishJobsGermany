@@ -38,6 +38,11 @@ function formatRequirements(pr) {
     return lines.join(' | ');
 }
 
+/** JSON replacer: keep orchestrator-internal fields (learned feedback) out of prompts. */
+function omitInternal(key, value) {
+    return key === '_feedback' ? undefined : value;
+}
+
 /**
  * Returns the first N words of text.
  */
@@ -50,7 +55,7 @@ function truncateWords(text, wordCount) {
  * Builds the Pass A user message: candidate profile + compact job summaries.
  */
 export function buildPassAUserMessage(profile, jobs) {
-    let message = `CANDIDATE PROFILE:\n${JSON.stringify(profile, null, 2)}`;
+    let message = `CANDIDATE PROFILE:\n${JSON.stringify(profile, omitInternal, 2)}`;
 
     // Append job preferences if user has set them
     if (profile._jobPreferences) {
@@ -86,7 +91,7 @@ export function buildPassAUserMessage(profile, jobs) {
  * Builds the Pass B user message: candidate profile + full job details.
  */
 export function buildPassBUserMessage(profile, jobs) {
-    let message = `CANDIDATE PROFILE:\n${JSON.stringify(profile, null, 2)}`;
+    let message = `CANDIDATE PROFILE:\n${JSON.stringify(profile, omitInternal, 2)}`;
 
     if (profile._jobPreferences) {
         const jp = profile._jobPreferences;

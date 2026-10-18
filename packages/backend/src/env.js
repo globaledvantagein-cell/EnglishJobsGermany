@@ -2,12 +2,12 @@ import dotenv from "dotenv";
 dotenv.config();
 
 
-// Gemini API Keys — round-robin rotation
-export const GEMINI_API_KEYS = [
-    process.env.GEMINI_API_KEY_1 || process.env.GEMINI_API_KEY || null,
-    process.env.GEMINI_API_KEY_2 || null,
-    process.env.GEMINI_API_KEY_3 || null,
-].filter(Boolean);
+// Gemini API Keys — round-robin rotation. Reads GEMINI_API_KEY_1 … _10
+// (gaps allowed), so adding a key is an .env change only.
+export const GEMINI_API_KEYS = Array.from({ length: 10 }, (_, i) => process.env[`GEMINI_API_KEY_${i + 1}`])
+    .concat(process.env.GEMINI_API_KEY_1 ? [] : [process.env.GEMINI_API_KEY])
+    .map(key => (key || '').trim())
+    .filter(Boolean);
 
 export const MONGO_URI = process.env.MONGO_URI;
 

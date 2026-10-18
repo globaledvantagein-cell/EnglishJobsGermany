@@ -13,6 +13,7 @@
 import { type KeyboardEvent, type MouseEvent, type CSSProperties } from 'react';
 import { Bookmark } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useHydrated } from '../hooks/useHydrated';
 import { useSavedJobs } from '../context/SavedJobsContext';
 
 interface Props {
@@ -22,10 +23,12 @@ interface Props {
 }
 
 export default function SaveJobButton({ jobId, size = 15, style }: Props) {
+  const hydrated = useHydrated();
   const { isAuthenticated } = useAuth();
   const { isSaved, toggleSave } = useSavedJobs();
 
-  if (!isAuthenticated) return null;
+  // Nothing until hydrated: the server always renders the signed-out state.
+  if (!hydrated || !isAuthenticated) return null;
 
   const saved = isSaved(jobId);
 

@@ -14,7 +14,7 @@
 // truth) but with richer state, since Gemini keys hit RPM limits and can be
 // permanently rejected with 403.
 //
-// Keys come from GEMINI_API_KEY_1/_2/_3, assembled in src/env.js.
+// Keys come from GEMINI_API_KEY_1 … _10, assembled in src/env.js.
 
 import { GEMINI_API_KEYS } from '../env.js';
 
@@ -49,7 +49,7 @@ export const MODEL_RPM_CAPS = {
 };
 
 if (GEMINI_API_KEYS.length === 0) {
-    throw new Error('[Gemini] No API keys configured. Set GEMINI_API_KEY_1, _2, _3 in .env');
+    throw new Error('[Gemini] No API keys configured. Set GEMINI_API_KEY_1 (… _10) in .env');
 }
 
 // One state record per configured key. Never reassigned — this array IS the

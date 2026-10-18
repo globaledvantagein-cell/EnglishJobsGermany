@@ -53,6 +53,31 @@ export async function fetchBaitJobs(revalidate?: number): Promise<IJob[]> {
   return Array.isArray(data) ? data : [];
 }
 
+/** Facet totals from GET /api/jobs/filter-counts (same filters as the list). */
+export interface JobFacetCounts {
+  workplace: Record<string, number>;
+  experience: Record<string, number>;
+  employment: Record<string, number>;
+  visa: { available: number };
+  relocation: { available: number };
+  hasSalary: { count: number };
+  category?: Record<string, number>;
+}
+
+/** Facet counts for a category (or all jobs). Pass `revalidate` to cache (ISR). */
+export async function fetchFilterCounts(params: { category?: string; search?: string; revalidate?: number }): Promise<JobFacetCounts | null> {
+  const qs = new URLSearchParams();
+  if (params.category) qs.set('category', params.category);
+  if (params.search) qs.set('search', params.search);
+  return getJson<JobFacetCounts>(`/api/jobs/filter-counts?${qs.toString()}`, params.revalidate);
+}
+
+/** GET /api/jobs/category-counts — { [category]: activeJobCount }. Pass `revalidate` to cache (ISR). */
+export async function fetchCategoryCounts(revalidate?: number): Promise<Record<string, number>> {
+  const data = await getJson<Record<string, number>>('/api/jobs/category-counts', revalidate);
+  return data && typeof data === 'object' ? data : {};
+}
+
 /** GET /api/jobs/directory — company directory stats. Pass `revalidate` to cache (ISR). */
 export async function fetchDirectory(revalidate?: number): Promise<ICompany[]> {
   const data = await getJson<ICompany[]>('/api/jobs/directory', revalidate);

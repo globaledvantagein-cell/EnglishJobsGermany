@@ -23,13 +23,25 @@ export default function Dashboard() {
   const [searchParams] = useSearchParams();
   const companyParam = searchParams.get('company');
   const searchParam  = searchParams.get('search');
+  // Shareable filter links (homepage quick links, FAQ): ?visa=1,
+  // ?relocation=1, ?workplace=remote, ?experience=entry, ?category=Sales (comma-separated lists).
+  const list = (key: string) => (searchParams.get(key) || '').split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
+  const urlFilters = {
+    ...(searchParams.get('visa') === '1' && { visa: true }),
+    ...(searchParams.get('relocation') === '1' && { relocation: true }),
+    ...(list('workplace').length > 0 && { workplace: list('workplace') }),
+    ...(list('experience').length > 0 && { experience: list('experience') }),
+    ...(list('employment').length > 0 && { employment: list('employment') }),
+    // Category names are case-sensitive ("Sales", "AI / ML"), so not lower-cased.
+    ...(searchParams.get('category') && { category: searchParams.get('category')!.split(',').map(v => v.trim()).filter(Boolean) }),
+  };
 
   const {
     filters, setFilters, clearFilters, hasActiveFilters, activeFilterCount,
     companyOptions, categoryOptions, facetCounts,
     jobs, totalJobs, hasMore,
     loading, loadingMore, loadMore, error, retry,
-  } = useJobFilters(companyParam || undefined, searchParam || undefined);
+  } = useJobFilters(companyParam || undefined, searchParam || undefined, urlFilters);
 
   const { isPremium } = useAuth();
 

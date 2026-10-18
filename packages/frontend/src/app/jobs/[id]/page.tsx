@@ -5,7 +5,10 @@ import { fetchJobPage, fetchJobs, fetchRelatedJobs, SITE_URL } from '@/lib/serve
 import { categorySlug } from '@/utils/categorize';
 import { findCityByLocation } from '@/data/cities';
 import JobSharePage from '@/page-components/JobSharePage';
-import JsonLd, { jobPostingJsonLd } from '@/components/seo/JsonLd';
+import JsonLd, { jobPostingJsonLd, breadcrumbJsonLd } from '@/components/seo/JsonLd';
+import SeoJobCard from '@/components/seo/SeoJobCard';
+import { ArrowRight, ChevronLeft } from 'lucide-react';
+import '@/components/seo/listing.css';
 import { brandTitle } from '@/lib/seoTitle';
 import { alternatesFor } from '@/lib/seoAlternates';
 
@@ -23,21 +26,8 @@ export function generateStaticParams() {
 
 type Params = { params: Promise<{ id: string }> };
 
-const sectionHeadingStyle = {
-  fontSize: '1.1rem',
-  fontWeight: 700,
-  color: 'var(--text-primary)',
-  margin: '0 0 8px',
-} as const;
 
-const sectionBodyStyle = {
-  fontSize: '0.95rem',
-  lineHeight: 1.7,
-  color: 'var(--text-secondary)',
-  margin: 0,
-} as const;
 
-const linkStyle = { color: 'var(--primary)', fontWeight: 600, textDecoration: 'none' } as const;
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params;
@@ -103,14 +93,14 @@ export default async function JobDetailRoute({ params }: Params) {
   // no DB, and they run in parallel with each other.
   const city = findCityByLocation(job?.Location);
   const [related, cityStats] = await Promise.all([
-    fetchRelatedJobs(id, 5, JOB_PAGE_REVALIDATE),
+    fetchRelatedJobs(id, 6, JOB_PAGE_REVALIDATE),
     city ? fetchJobs({ search: city.slug, limit: 1, revalidate: JOB_PAGE_REVALIDATE }) : Promise.resolve(null),
   ]);
   const category = related.category || job?.Category || null;
   const cityCount = cityStats?.totalJobs ?? 0;
 
   return (
-    <>
+    <div className="page-wash" data-wash="jobs">
       {job && <JsonLd data={jobPostingJsonLd(job, SITE_URL)} />}
 
       {/* Breadcrumbs. Rendered as microdata rather than a second JSON-LD
@@ -120,48 +110,40 @@ export default async function JobDetailRoute({ params }: Params) {
           that passes equity from the ~4.3k job pages down to the 28 category
           pages. `href` is used over <Link> so the trail is a plain crawlable
           anchor in the server HTML. */}
+      {/* Top nav, after Jobright/Wellfound/Arbeitnow job pages (REA): none of
+          them repeat the job title in a visible trail — it sits right below.
+          So the visible bar is a short one-line trail (just the parent on
+          phones); the full three-level trail stays as BreadcrumbList JSON-LD. */}
       {job && (
-        <nav
-          aria-label="Breadcrumb"
-          style={{
-            maxWidth: 1200,
-            margin: '0 auto',
-            padding: 'clamp(12px,2vw,20px) clamp(16px,3vw,24px) 0',
-            fontSize: '0.8rem',
-            color: 'var(--text-secondary)',
-          }}
-        >
-          <ol
-            itemScope
-            itemType="https://schema.org/BreadcrumbList"
-            style={{ display: 'flex', flexWrap: 'wrap', gap: 6, listStyle: 'none', margin: 0, padding: 0 }}
-          >
-            <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-              <Link itemProp="item" href="/" style={{ color: 'inherit' }}>
-                <span itemProp="name">Home</span>
-              </Link>
-              <meta itemProp="position" content="1" />
-            </li>
-            <li aria-hidden="true">›</li>
-            <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-              {category ? (
-                <Link itemProp="item" href={`/category/${categorySlug(category)}`} style={{ color: 'inherit' }}>
-                  <span itemProp="name">{category}</span>
-                </Link>
-              ) : (
-                <Link itemProp="item" href="/jobs" style={{ color: 'inherit' }}>
-                  <span itemProp="name">Jobs</span>
-                </Link>
-              )}
-              <meta itemProp="position" content="2" />
-            </li>
-            <li aria-hidden="true">›</li>
-            <li itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-              <span itemProp="name" style={{ color: 'var(--text-primary)' }}>{job.JobTitle}</span>
-              <meta itemProp="position" content="3" />
-            </li>
-          </ol>
-        </nav>
+        <>
+          <JsonLd
+            data={breadcrumbJsonLd([
+              { name: 'Home', url: `${SITE_URL}/` },
+              category
+                ? { name: category, url: `${SITE_URL}/category/${categorySlug(category)}` }
+                : { name: 'Jobs', url: `${SITE_URL}/jobs` },
+              { name: job.JobTitle, url: `${SITE_URL}/jobs/${job._id}` },
+            ])}
+          />
+          <nav aria-label="Breadcrumb" className="jd-crumbs">
+            <a href="/jobs" className="jd-crumb-root">Jobs</a>
+            {category && (
+              <>
+                <span aria-hidden="true" className="jd-crumb-sep">›</span>
+                <a href={`/category/${categorySlug(category)}`} className="jd-crumb-parent">
+                  <ChevronLeft size={15} aria-hidden="true" className="jd-crumb-back" />
+                  {category}
+                </a>
+              </>
+            )}
+            {city && (
+              <>
+                <span aria-hidden="true" className="jd-crumb-sep">·</span>
+                <a href={`/city/${city.slug}`} className="jd-crumb-city">{city.label}</a>
+              </>
+            )}
+          </nav>
+        </>
       )}
       {/* Seed the client page with the full job so it paints instantly (no
           skeleton) and crawlers see the description. JobSharePage then checks
@@ -169,65 +151,56 @@ export default async function JobDetailRoute({ params }: Params) {
           needed. A teaser (no SSR_API_TOKEN) has no description, so no seed. */}
       <JobSharePage initialJob={res.full ? job : null} />
 
+      {/* Below the job: similar roles as real job cards, plus the category and
+          city hubs as compact link cards — the job-to-job and job-to-hub
+          internal links, in the same visual language as the listing pages. */}
       {job && (category || city || related.jobs.length > 0) && (
-        <div
-          style={{
-            maxWidth: 1200,
-            margin: '0 auto',
-            padding: '8px clamp(16px,3vw,24px) 48px',
-            display: 'grid',
-            gap: 28,
-          }}
-        >
-          {/* a) Category hub link. */}
-          {category && (
-            <section>
-              <h2 style={sectionHeadingStyle}>More {category} Jobs</h2>
-              <p style={sectionBodyStyle}>
-                Browse all{' '}
-                <Link href={`/category/${categorySlug(category)}`} style={linkStyle}>
-                  {category} jobs in Germany
-                </Link>
-                {related.categoryTotal > 0 && ` — ${related.categoryTotal}+ positions`}, no German
-                required.
-              </p>
-            </section>
-          )}
+        <section className="jd-explore" aria-labelledby="jd-explore-title">
+          <div className="jd-explore-grid">
+            <div>
+              <div className="ls-list-head">
+                <h2 id="jd-explore-title">Similar jobs</h2>
+                {category && <a href={`/category/${categorySlug(category)}`} className="jd-explore-all">See all <ArrowRight size={15} /></a>}
+              </div>
+              {related.jobs.length > 0 ? (
+                <div className="ls-list">
+                  {related.jobs.map((j) => <SeoJobCard key={j._id} job={j} />)}
+                </div>
+              ) : (
+                <p style={{ color: 'var(--text-secondary)' }}>No similar roles open right now.</p>
+              )}
+            </div>
 
-          {/* b) City hub link — only when the job's Location resolves to a city
-              we actually have a page for. */}
-          {city && (
-            <section>
-              <h2 style={sectionHeadingStyle}>More Jobs in {city.label}</h2>
-              <p style={sectionBodyStyle}>
-                Find{' '}
-                <Link href={`/city/${city.slug}`} style={linkStyle}>
-                  English-speaking jobs in {city.label}
-                </Link>
-                {cityCount > 0 && ` — ${cityCount}+ verified positions`}.
-              </p>
-            </section>
-          )}
-
-          {/* c) Sibling job links — the job-to-job edges that let a crawler
-              walk the whole category from any one page. */}
-          {related.jobs.length > 0 && (
-            <section>
-              <h2 style={sectionHeadingStyle}>Similar Jobs You Might Like</h2>
-              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 10 }}>
-                {related.jobs.map((j) => (
-                  <li key={j._id}>
-                    <Link href={`/jobs/${j._id}`} style={{ ...sectionBodyStyle, ...linkStyle, display: 'block' }}>
-                      <strong style={{ color: 'var(--text-primary)' }}>{j.JobTitle}</strong> at{' '}
-                      {j.Company} · {j.Location}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-        </div>
+            <aside className="jd-explore-aside">
+              {category && (
+                <a href={`/category/${categorySlug(category)}`} className="jd-hub">
+                  <span className="jd-hub-label">More in this field</span>
+                  <span className="jd-hub-title">{category} jobs in Germany</span>
+                  <span className="jd-hub-meta">
+                    {related.categoryTotal > 0 ? `${related.categoryTotal.toLocaleString('en-US')} open roles, no German required` : 'No German required'}
+                    <ArrowRight size={16} />
+                  </span>
+                </a>
+              )}
+              {city && (
+                <a href={`/city/${city.slug}`} className="jd-hub">
+                  <span className="jd-hub-label">More in this city</span>
+                  <span className="jd-hub-title">English-speaking jobs in {city.label}</span>
+                  <span className="jd-hub-meta">
+                    {cityCount > 0 ? `${cityCount.toLocaleString('en-US')} open roles` : 'Browse open roles'}
+                    <ArrowRight size={16} />
+                  </span>
+                </a>
+              )}
+              <a href="/alerts" className="jd-hub" data-tone="accent">
+                <span className="jd-hub-label">Don’t miss the next one</span>
+                <span className="jd-hub-title">Get new {category ?? 'English-speaking'} jobs by email</span>
+                <span className="jd-hub-meta">Free weekly job alerts <ArrowRight size={16} /></span>
+              </a>
+            </aside>
+          </div>
+        </section>
       )}
-    </>
+    </div>
   );
 }

@@ -284,13 +284,9 @@ async function run() {
 
     if (!process.env.MONGO_URI) throw new Error('MONGO_URI is not defined in environment variables');
 
-    const geminiKeys = [
-        process.env.GEMINI_API_KEY_1 || process.env.GEMINI_API_KEY,
-        process.env.GEMINI_API_KEY_2,
-        process.env.GEMINI_API_KEY_3,
-    ].filter(Boolean);
+    const { GEMINI_API_KEYS: geminiKeys } = await import('../env.js');
     if (!FLAGS.dryRun && geminiKeys.length === 0) {
-        throw new Error('No GEMINI_API_KEY_1.._3 set — this migration runs on Gemini');
+        throw new Error('No GEMINI_API_KEY_1.._10 set — this migration runs on Gemini');
     }
     console.log(`[Migration] ${geminiKeys.length} Gemini key(s) configured — up to ${geminiKeys.length} batches in flight`);
 

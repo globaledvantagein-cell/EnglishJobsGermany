@@ -16,11 +16,16 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Building2, Calendar, ExternalLink, Laptop, MapPin, Search } from 'lucide-react';
+import { ArrowLeft, Building2, Calendar, ExternalLink, Laptop, MapPin, Search, ThumbsDown } from 'lucide-react';
 import { Link } from '@/compat/router';
 import CompanyLogo from '../CompanyLogo';
 import SaveJobButton from '../SaveJobButton';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useSavedJobs } from '../../context/SavedJobsContext';
+import {
+  DISMISS_REASONS, sendImpressions, sendMatchEvent, undoDismiss,
+  type DismissReason, type MatchAction, type MatchSource,
+} from '../../utils/matchFeedbackApi';
 import type { ResumeProfile } from '../../utils/resumeMatchApi';
 import { TIER_LABEL, type MatchItem, type MatchTier } from './matchItem';
 import { ProfileStrip, ScoreBadge, ScoreRing, SkillChips, fmtRelative } from './MatchParts';
@@ -46,6 +51,10 @@ interface Props {
   state?: ReactNode;
   loading?: boolean;
   embedded?: boolean;
+  /** Enables feedback (Not interested + implicit signals) for this source. */
+  source?: MatchSource;
+  /** Identifies the shown list (e.g. "today:2026-10-17") for impression logging. */
+  listId?: string;
 }
 
 function isTypingTarget(target: EventTarget | null) {
@@ -53,8 +62,45 @@ function isTypingTarget(target: EventTarget | null) {
 }
 
 export default function MatchWorkspace({
-  title, subtitle, items, profile, actions, meta, banner, state, loading, embedded,
+  title, subtitle, items: allItems, profile, actions, meta, banner, state, loading, embedded, source, listId,
 }: Props) {
+  // ── Feedback: hidden ("Not interested") jobs and implicit signals ─────────
+  const [dismissed, setDismissed] = useState<Map<string, DismissReason>>(new Map());
+  const [undo, setUndo] = useState<{ item: MatchItem; reason: DismissReason } | null>(null);
+  const openedRef = useRef<Set<string>>(new Set());
+  const items = useMemo(() => allItems.filter(i => !dismissed.has(i.id)), [allItems, dismissed]);
+
+  // Position = rank in the list as delivered (before the user re-sorts).
+  const context = (item: MatchItem) => ({ position: allItems.findIndex(i => i.id === item.id), listId });
+  const track = (item: MatchItem, action: MatchAction) => { if (source) sendMatchEvent(item.id, source, action, undefined, context(item)); };
+  const dismiss = (item: MatchItem, reason: DismissReason) => {
+    if (!source) return;
+    sendMatchEvent(item.id, source, 'dismiss', reason, context(item));
+    setDismissed(prev => new Map(prev).set(item.id, reason));
+    setUndo({ item, reason });
+  };
+  const restore = async () => {
+    if (!undo) return;
+    const { item } = undo;
+    setUndo(null);
+    setDismissed(prev => { const next = new Map(prev); next.delete(item.id); return next; });
+    await undoDismiss(item.id).catch(() => {});
+  };
+  // Log the shown list once per listId (reloads of the same list are deduped
+  // server-side too).
+  const impressedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!source || !listId || allItems.length === 0 || impressedRef.current === listId) return;
+    impressedRef.current = listId;
+    sendImpressions(source, listId, allItems.map(i => i.id));
+  }, [source, listId, allItems]);
+
+  useEffect(() => {
+    if (!undo) return;
+    const id = window.setTimeout(() => setUndo(null), 8000);
+    return () => window.clearTimeout(id);
+  }, [undo]);
+
   const [tier, setTier] = useState<TierFilter>('all');
   const [workplace, setWorkplace] = useState('');
   const [sort, setSort] = useState<SortKey>('score');
@@ -122,6 +168,16 @@ export default function MatchWorkspace({
   }, [visibleIds, effectiveId]);
 
   const select = (id: string) => { setSelectedId(id); setSheetOpen(true); };
+
+  // "Opened" counts once per job per visit, and only when the user picks it
+  // (or steps to it) — not for the row auto-selected on load.
+  useEffect(() => {
+    if (!source || !selectedId || openedRef.current.has(selectedId)) return;
+    const item = items.find(i => i.id === selectedId);
+    if (!item) return;
+    openedRef.current.add(selectedId);
+    sendMatchEvent(item.id, source, 'open', undefined, { position: allItems.findIndex(i => i.id === item.id), listId });
+  }, [selectedId, items, allItems, source, listId]);
   const showSheet = isNarrow && sheetOpen && selected !== null;
 
   // The sheet covers the page; stop the page behind it from scrolling.
@@ -213,20 +269,33 @@ export default function MatchWorkspace({
 
             <aside className="mx-detail" aria-label="Match details">
               {selected
-                ? <MatchDetail item={selected} onBack={() => setSheetOpen(false)} />
+                ? <MatchDetail key={selected.id} item={selected} onBack={() => setSheetOpen(false)} onTrack={a => track(selected, a)} onDismiss={source ? r => dismiss(selected, r) : undefined} />
                 : <div className="mx-empty-detail">{loading ? 'Loading…' : 'Select a match to see why it fits.'}</div>}
             </aside>
             {showSheet && createPortal(
               <div className="mx mx-sheet" role="dialog" aria-modal="true" aria-label="Match details">
-                <MatchDetail item={selected} onBack={() => setSheetOpen(false)} />
+                <MatchDetail key={selected.id} item={selected} onBack={() => setSheetOpen(false)} onTrack={a => track(selected, a)} onDismiss={source ? r => { dismiss(selected, r); setSheetOpen(false); } : undefined} />
               </div>,
               document.body,
             )}
           </div>
         </>
       )}
+
+      {undo && (
+        <div className="mx-undo" role="status">
+          <span>Hidden “{undo.item.title}”. {DISMISS_REASONS.find(r => r.value === undo.reason)?.hint}.</span>
+          <button type="button" onClick={restore}>Undo</button>
+        </div>
+      )}
     </div>
   );
+}
+
+function badgeKind(badge: string): string {
+  if (badge === 'New') return 'new';
+  if (badge === 'Visa sponsorship' || badge === 'Relocation support') return 'ok';
+  return 'neutral';
 }
 
 function MatchRow({ item, selected, onSelect }: { item: MatchItem; selected: boolean; onSelect: () => void }) {
@@ -238,6 +307,7 @@ function MatchRow({ item, selected, onSelect }: { item: MatchItem; selected: boo
         <span className="mx-row-title" style={{ display: 'block' }} title={item.title}>{item.title}</span>
         <span className="mx-row-sub" style={{ display: 'block' }} title={sub}>
           {sub}{item.workplace ? ` · ${item.workplace}` : ''}
+          {item.badges.slice(0, 2).map(b => <span key={b} className="mx-badge" data-kind={badgeKind(b)}>{b}</span>)}
         </span>
         {item.matched.length > 0 && (
           <span className="mx-row-skills">
@@ -255,7 +325,16 @@ function MatchRow({ item, selected, onSelect }: { item: MatchItem; selected: boo
   );
 }
 
-function MatchDetail({ item, onBack }: { item: MatchItem; onBack: () => void }) {
+function MatchDetail({ item, onBack, onTrack, onDismiss }: {
+  item: MatchItem;
+  onBack: () => void;
+  onTrack: (action: MatchAction) => void;
+  onDismiss?: (reason: DismissReason) => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [reason, setReason] = useState<DismissReason | null>(null);
+  const { isSaved } = useSavedJobs();
+  const closeDialog = () => { setMenuOpen(false); setReason(null); };
   const coverage = item.requiredCount ? Math.round((item.matched.length / item.requiredCount) * 100) : null;
   const posted = fmtRelative(item.postedAt);
 
@@ -276,6 +355,11 @@ function MatchDetail({ item, onBack }: { item: MatchItem; onBack: () => void }) 
                 {item.workplace && <span><Laptop size={13} />{item.workplace}</span>}
                 {posted && <span><Calendar size={13} />Posted {posted}</span>}
               </div>
+              {item.badges.length > 0 && (
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
+                  {item.badges.map(b => <span key={b} className="mx-badge" data-kind={badgeKind(b)}>{b}</span>)}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -297,6 +381,24 @@ function MatchDetail({ item, onBack }: { item: MatchItem; onBack: () => void }) 
               </div>
             )}
         </div>
+
+        {item.dimensions.length > 0 && (
+          <div>
+            <div className="mx-section-label">Why this job is a match</div>
+            <div className="mx-dims">
+              {item.dimensions.map(d => {
+                const pct = d.value == null ? null : Math.round(d.value * 100);
+                const tone = pct == null ? undefined : pct >= 75 ? 'ok' : pct >= 50 ? 'warn' : 'bad';
+                return (
+                  <div key={d.key} className="mx-dim" title={pct == null ? 'The posting does not state this' : `${pct}%`}>
+                    <div className="mx-dim-head"><span>{d.label}</span><strong>{pct == null ? 'not stated' : `${pct}%`}</strong></div>
+                    <div className="mx-bar" data-tone={tone}><span style={{ width: `${pct ?? 0}%` }} /></div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {item.fits.length > 0 && (
           <dl className="mx-fits">
@@ -335,14 +437,49 @@ function MatchDetail({ item, onBack }: { item: MatchItem; onBack: () => void }) 
       </div>
 
       <div className="mx-detail-actions">
-        <SaveJobButton jobId={item.id} />
+        {/* Capture phase: read the state BEFORE SaveJobButton toggles it. */}
+        <span onClickCapture={() => { if (!isSaved(item.id)) onTrack('save'); }}>
+          <SaveJobButton jobId={item.id} />
+        </span>
+        {onDismiss && (
+          <button type="button" className="mx-btn" data-variant="ghost" aria-haspopup="dialog" onClick={() => setMenuOpen(true)}>
+            <ThumbsDown size={14} />Not interested
+          </button>
+        )}
+        {onDismiss && menuOpen && createPortal(
+          // Portal + fixed overlay: the detail pane clips overflow, and the
+          // public <main> keeps a transform that would trap a fixed element.
+          <div className="mx mx-overlay" onMouseDown={e => { if (e.target === e.currentTarget) closeDialog(); }}>
+            <div className="mx-dialog" role="dialog" aria-modal="true" aria-labelledby="mx-dismiss-title"
+              onKeyDown={e => { if (e.key === 'Escape') closeDialog(); }}>
+              <h2 id="mx-dismiss-title">Tell us why it&apos;s not a fit</h2>
+              <p>We&apos;ll use this to refine your matches.</p>
+              <div role="radiogroup" aria-label="Reason" className="mx-reasons">
+                {DISMISS_REASONS.map(r => (
+                  <label key={r.value} className="mx-reason" data-checked={reason === r.value ? 'true' : undefined}>
+                    <input type="radio" name="dismiss-reason" value={r.value} checked={reason === r.value} onChange={() => setReason(r.value)} />
+                    <span><strong>{r.label}</strong><small>{r.hint}</small></span>
+                  </label>
+                ))}
+              </div>
+              <div className="mx-dialog-foot">
+                <button type="button" className="mx-btn" data-variant="ghost" onClick={closeDialog}>Cancel</button>
+                <button type="button" className="mx-btn" data-variant="primary" disabled={!reason}
+                  onClick={() => { if (reason) { const r = reason; closeDialog(); onDismiss(r); } }}>
+                  Submit
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
         <span className="mx-grow" />
         {item.applyUrl && (
-          <a className="mx-btn" href={item.applyUrl} target="_blank" rel="noopener noreferrer">
+          <a className="mx-btn" href={item.applyUrl} target="_blank" rel="noopener noreferrer" onClick={() => onTrack('company_site')}>
             Company site <ExternalLink size={13} />
           </a>
         )}
-        <Link to={`/jobs/${item.id}`} className="mx-btn" data-variant="primary">View full job</Link>
+        <Link to={`/jobs/${item.id}`} className="mx-btn" data-variant="primary" onClick={() => onTrack('view_job')}>View full job</Link>
       </div>
     </>
   );

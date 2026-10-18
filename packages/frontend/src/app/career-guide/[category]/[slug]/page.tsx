@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { fetchArticleBySlug, fetchArticlesByCategory, SITE_URL } from '@/lib/serverApi';
 import { careerCategoryLabel } from '@/data/careerGuide';
-import { renderArticle } from '@/lib/markdown';
+import { renderArticle, estimateReadingMinutes } from '@/lib/markdown';
+import ArticleCard from '@/components/guide/ArticleCard';
 import { brandTitle } from '@/lib/seoTitle';
 import JsonLd, { breadcrumbJsonLd } from '@/components/seo/JsonLd';
 import ReadingProgress from '@/components/ReadingProgress';
@@ -71,12 +72,10 @@ export default async function CareerGuideArticle({ params }: Params) {
   const relatedGrid = (
     <div className="article-related__grid">
       {related.map((a) => (
-        <Link key={a._id} href={`/career-guide/${a.category}/${a.slug}`} className="article-card">
-          <span className="article-card__badge">{label}</span>
-          <span className="article-card__title">{a.title}</span>
-          {a.description && <span className="article-card__desc">{a.description}</span>}
-          <span className="article-card__more">Read guide →</span>
-        </Link>
+        <ArticleCard
+          key={a._id}
+          article={{ slug: a.slug, category: a.category, title: a.title, description: a.description, publishedAt: a.publishedAt, readingMinutes: estimateReadingMinutes(a.content) }}
+        />
       ))}
     </div>
   );

@@ -75,6 +75,7 @@
   font-weight: 700; font-size: 13px; letter-spacing: -0.01em;
   white-space: nowrap; overflow: hidden;
 }
+.adm-brand-text em { font-style: normal; font-weight: 600; color: var(--adm-ink-3); }
 .adm-brand-mark {
   width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0;
   display: grid; place-items: center;

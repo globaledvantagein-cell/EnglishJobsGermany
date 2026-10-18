@@ -1,10 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { fetchPublishedArticles, SITE_URL } from '@/lib/serverApi';
-import { CAREER_GUIDE_CATEGORIES, careerCategoryLabel } from '@/data/careerGuide';
+import { ArrowRight } from 'lucide-react';
+import { fetchJobs, fetchPublishedArticles, SITE_URL } from '@/lib/serverApi';
 import { estimateReadingMinutes } from '@/lib/markdown';
 import JsonLd, { breadcrumbJsonLd } from '@/components/seo/JsonLd';
 import { alternatesFor } from '@/lib/seoAlternates';
+import ArticleCard, { type GuideArticleSummary } from '@/components/guide/ArticleCard';
+import GuideTopics from '@/components/guide/GuideTopics';
+import '@/components/seo/listing.css';
 
 // ISR: articles change rarely, so cache the page and revalidate hourly. The
 // article fetch passes the same `revalidate` (a `no-store` fetch would force
@@ -19,101 +22,109 @@ export const metadata: Metadata = {
   alternates: alternatesFor('/career-guide'),
 };
 
-function formatDate(value?: string | null): string {
-  if (!value) return '';
-  return new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 export default async function CareerGuideHub() {
-  const articles = await fetchPublishedArticles(3600);
+  const [articles, jobStats] = await Promise.all([
+    fetchPublishedArticles(3600),
+    fetchJobs({ limit: 1, revalidate: 3600 }),
+  ]);
   const counts = new Map<string, number>();
   for (const a of articles) counts.set(a.category, (counts.get(a.category) || 0) + 1);
 
   // Every published guide, newest first — the whole library is browsable
-  // from this one page. Category pages remain as crawlable SEO hubs,
-  // reachable via the topic chips.
-  const sorted = [...articles].sort((a, b) => (b.publishedAt || '').localeCompare(a.publishedAt || ''));
-  const [featured, ...rest] = sorted;
+  // from this one page. Topic pages remain as crawlable SEO hubs.
+  const summaries: GuideArticleSummary[] = [...articles]
+    .sort((a, b) => (b.publishedAt || '').localeCompare(a.publishedAt || ''))
+    .map((a) => ({
+      slug: a.slug, category: a.category, title: a.title, description: a.description,
+      publishedAt: a.publishedAt, readingMinutes: estimateReadingMinutes(a.content),
+    }));
+  const [featured, ...rest] = summaries;
+  const updated = featured?.publishedAt
+    ? new Date(featured.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null;
+  const jobCount = jobStats.totalJobs > 0 ? `${(Math.floor(jobStats.totalJobs / 100) * 100).toLocaleString('en-US')}+` : null;
+
+  // CollectionPage + ItemList: tells crawlers and AI answer engines this page
+  // is the index of the guide library, with every article listed.
+  const collectionJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: 'Germany Career Guide',
+    url: `${SITE_URL}/career-guide`,
+    description: 'Practical guides on finding English-speaking jobs in Germany: visas, salaries, companies, and settling in.',
+    mainEntity: {
+      '@type': 'ItemList',
+      itemListElement: summaries.map((a, i) => ({
+        '@type': 'ListItem', position: i + 1, name: a.title,
+        url: `${SITE_URL}/career-guide/${a.category}/${a.slug}`,
+      })),
+    },
+  };
 
   return (
-    <div className="guide-hub">
-      <JsonLd
-        data={breadcrumbJsonLd([
-          { name: 'Home', url: `${SITE_URL}/` },
-          { name: 'Career Guide', url: `${SITE_URL}/career-guide` },
-        ])}
-      />
+    <div className="page-wash" data-wash="guide">
+      <div className="gd">
+        <JsonLd
+          data={breadcrumbJsonLd([
+            { name: 'Home', url: `${SITE_URL}/` },
+            { name: 'Career Guide', url: `${SITE_URL}/career-guide` },
+          ])}
+        />
+        <JsonLd data={collectionJsonLd} />
 
-      <header className="guide-hero">
-        <span className="guide-hero__eyebrow">Career Guide</span>
-        <h1 className="guide-hero__title">Germany Career Guide</h1>
-        <p className="guide-hero__lede">
-          Your complete guide to working in Germany as an English speaker. From finding jobs
-          to navigating visas, salary negotiation to settling in — everything you need to know.
-        </p>
-        <p className="guide-hero__lede">
-          Practical, no-nonsense guides on landing an English-speaking job in Germany — visas,
-          salaries, companies, and everything about settling in. Written for internationals.
-        </p>
-      </header>
+        <nav aria-label="Breadcrumb" className="ls-crumbs">
+          <Link href="/">Home</Link>{' › '}<span style={{ color: 'var(--text-primary)' }}>Career guide</span>
+        </nav>
 
-      {/* Topic chips — real links to the category pages (SEO hubs). */}
-      <nav aria-label="Guide topics" className="guide-chips">
-        {CAREER_GUIDE_CATEGORIES.map((slug) => {
-          const n = counts.get(slug) || 0;
-          if (n === 0) return null;
-          return (
-            <Link key={slug} href={`/career-guide/${slug}`} className="guide-chip">
-              {careerCategoryLabel(slug)}
-              <span className="guide-chip__count">{n}</span>
-            </Link>
-          );
-        })}
-      </nav>
-
-      {featured && (
-        <section aria-labelledby="featured-heading">
-          <h2 id="featured-heading" className="sr-only">Featured guide</h2>
-          <Link href={`/career-guide/${featured.category}/${featured.slug}`} className="guide-feature">
-            <span className="guide-feature__eyebrow">
-              Latest · {careerCategoryLabel(featured.category)}
-            </span>
-            <span className="guide-feature__title">{featured.title}</span>
-            {featured.description && (
-              <span className="guide-feature__desc">{featured.description}</span>
-            )}
-            <span className="guide-feature__meta">
-              {featured.publishedAt && <>{formatDate(featured.publishedAt)}<span aria-hidden="true"> · </span></>}
-              {estimateReadingMinutes(featured.content)} min read
-              <span className="guide-feature__cta">Read the guide →</span>
-            </span>
-          </Link>
-        </section>
-      )}
-
-      {rest.length > 0 && (
-        <section aria-labelledby="all-heading" className="guide-index">
-          <h2 id="all-heading" className="guide-section-title">All guides</h2>
-          <ul className="guide-rows">
-            {rest.map((a) => (
-              <li key={a._id}>
-                <Link href={`/career-guide/${a.category}/${a.slug}`} className="guide-row">
-                  <span className="guide-row__main">
-                    <span className="guide-row__cat">{careerCategoryLabel(a.category)}</span>
-                    <span className="guide-row__title">{a.title}</span>
-                    {a.description && <span className="guide-row__desc">{a.description}</span>}
-                  </span>
-                  <span className="guide-row__meta">
-                    {a.publishedAt && <span>{formatDate(a.publishedAt)}</span>}
-                    <span>{estimateReadingMinutes(a.content)} min read</span>
-                    <span className="guide-row__arrow" aria-hidden="true">→</span>
-                  </span>
-                </Link>
-              </li>
-            ))}
+        <header className="gd-head">
+          <span className="gd-eyebrow">Career guide</span>
+          <h1 className="gd-title">Germany Career Guide</h1>
+          <p className="gd-lede">
+            Practical guides to working in Germany as an English speaker — finding jobs, visas,
+            salary negotiation, companies and settling in. Written for internationals.
+          </p>
+          <ul className="gd-stats">
+            <li><strong>{articles.length}</strong> guides</li>
+            <li><strong>{[...counts.values()].filter((n) => n > 0).length}</strong> topics</li>
+            {updated && <li>Updated {updated}</li>}
           </ul>
-        </section>
-      )}
+        </header>
+
+        {/* Topic tiles — real links to the topic pages (SEO hubs). */}
+        <GuideTopics counts={counts} />
+
+        {featured && (
+          <section className="gd-section" aria-labelledby="featured-heading">
+            <h2 id="featured-heading" className="ls-sr">Latest guide</h2>
+            <ArticleCard article={featured} featured />
+          </section>
+        )}
+
+        {rest.length > 0 && (
+          <section className="gd-section" aria-labelledby="all-heading">
+            <div className="gd-section-head">
+              <h2 id="all-heading">All guides</h2>
+              <p>Newest first</p>
+            </div>
+            <div className="gd-grid">
+              {rest.map((a) => <ArticleCard key={a.slug} article={a} />)}
+            </div>
+          </section>
+        )}
+
+        <aside className="gd-cta" aria-label="Find a job">
+          <div>
+            <p className="gd-cta-title">Ready to put this into practice?</p>
+            <p className="gd-cta-sub">
+              {jobCount ? `${jobCount} English-speaking jobs in Germany, checked so German isn’t required.` : 'English-speaking jobs in Germany, checked so German isn’t required.'}
+            </p>
+          </div>
+          <div className="gd-cta-actions">
+            <Link href="/jobs" data-variant="primary">Browse jobs <ArrowRight size={16} /></Link>
+            <Link href="/alerts">Get job alerts</Link>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }

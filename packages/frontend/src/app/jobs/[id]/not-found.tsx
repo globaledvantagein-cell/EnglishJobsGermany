@@ -6,7 +6,7 @@ import { CATEGORY_ORDER, categorySlug } from '@/utils/categorize';
 // categories) so traffic from stale search results / bookmarks is retained.
 export default function JobNotFound() {
   return (
-    <div style={{ background: 'var(--bg-base)', minHeight: '70vh' }}>
+    <div className="page-wash" data-wash="neutral" style={{ minHeight: '70vh' }}>
       <div style={{ maxWidth: 640, margin: '0 auto', padding: 'clamp(48px,8vw,88px) 24px', textAlign: 'center' }}>
         <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(1.6rem,4vw,2.2rem)', color: 'var(--text-primary)', margin: '0 0 12px' }}>
           This job is no longer available

@@ -3,12 +3,12 @@
 /**
  * /today-matches (and /admin/today-matches) — daily skill-matched jobs.
  *
- * Pure programmatic matching (no AI): the user's profile skills against the
- * parsedRequirements of active jobs. Renders through the shared
- * MatchWorkspace; this page maps the response and picks the empty state.
+ * Pure programmatic matching (no AI), computed ONCE per day by the server —
+ * there is deliberately no refresh button. "Not interested" and other
+ * feedback shape tomorrow's list. Renders through the shared MatchWorkspace.
  */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { AlertTriangle, Loader2, RefreshCw, SearchX, Sparkles, Upload, Wrench } from 'lucide-react';
+import { AlertTriangle, Clock, RefreshCw, SearchX, Sparkles, Upload, Wrench } from 'lucide-react';
 import { Link } from '@/compat/router';
 import { useAuth } from '../context/AuthContext';
 import { apiGet } from '../utils/jobApi';
@@ -29,28 +29,25 @@ export default function TodayMatches({ embedded = false }: { embedded?: boolean 
   const gate = usePremiumGate('today_matches');
 
   const [load, setLoad] = useState<LoadState>('loading');
-  const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState<SkillMatchResponse | null>(null);
   const [profile, setProfile] = useState<ResumeProfile | null>(null);
 
   useEffect(() => { if (!embedded) document.title = `Today's Matches · ${BRAND.appName}`; }, [embedded]);
 
-  const fetchMatches = useCallback(async (refresh: boolean) => {
-    if (refresh) setRefreshing(true);
+  const fetchMatches = useCallback(async () => {
+    setLoad('loading');
     try {
-      setData(await fetchSkillMatches(refresh));
+      setData(await fetchSkillMatches());
       setLoad('ready');
     } catch {
       setLoad('error');
-    } finally {
-      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
     // Premium-only: non-premium users never call /skill-matches (it 403s).
     if (gate !== 'allowed' || !token) return;
-    fetchMatches(false);
+    fetchMatches();
     apiGet<{ parsedProfile?: ResumeProfile | null }>('/api/auth/me')
       .then(me => setProfile(me?.parsedProfile ?? null))
       .catch(() => setProfile(null));
@@ -81,7 +78,7 @@ export default function TodayMatches({ embedded = false }: { embedded?: boolean 
         icon={<AlertTriangle size={22} />}
         title={reason === 'cache_not_ready' ? 'Jobs are still loading' : 'Could not load your matches'}
         body={reason === 'cache_not_ready' ? 'The server just restarted and is loading jobs. Try again in a minute.' : 'Something went wrong on our side. Please try again.'}
-        action={<button type="button" className="mx-btn" data-variant="primary" data-size="lg" onClick={() => fetchMatches(true)}><RefreshCw size={15} />Try again</button>}
+        action={<button type="button" className="mx-btn" data-variant="primary" data-size="lg" onClick={fetchMatches}><RefreshCw size={15} />Try again</button>}
       />
     );
   } else if (reason === 'no_profile') {
@@ -92,21 +89,30 @@ export default function TodayMatches({ embedded = false }: { embedded?: boolean 
     state = <StatePanel icon={<SearchX size={22} />} title="No matches today" body="None of today's active jobs list your skills. New jobs arrive daily, and adding more skills to your profile widens the net." action={editProfile('Add skills', <Wrench size={15} />)} />;
   }
 
+  const nextUpdate = meta?.nextUpdateAt ? hoursUntil(meta.nextUpdateAt) : null;
+
   return (
     <MatchWorkspace
       embedded={embedded}
       title="Today's Matches"
-      subtitle="Jobs that list the skills on your profile. Refreshed daily, no AI involved."
+      subtitle="A fresh shortlist every day, picked from the skills on your profile. Tell us what's not for you and tomorrow's list adapts."
       profile={profile}
       items={items}
       loading={load === 'loading'}
       state={state}
+      source="today"
+      listId={meta?.computedAt ? `today:${meta.computedAt}` : undefined}
       meta={meta?.totalJobsScanned ? `${meta.totalJobsScanned.toLocaleString()} jobs scanned · ${meta.userSkillCount ?? 0} skills on your profile` : undefined}
-      actions={
-        <button type="button" className="mx-btn" onClick={() => fetchMatches(true)} disabled={refreshing || load === 'loading'}>
-          {refreshing ? <Loader2 size={14} className="mx-spin" /> : <RefreshCw size={14} />}Refresh
-        </button>
-      }
+      actions={nextUpdate != null ? (
+        <span className="mx-btn" data-variant="ghost" style={{ cursor: 'default' }} title="Today's Matches is computed once a day">
+          <Clock size={14} />New list in {nextUpdate}h
+        </span>
+      ) : undefined}
     />
   );
+}
+
+/** Whole hours until an ISO time, at least 1. */
+function hoursUntil(iso: string): number {
+  return Math.max(1, Math.ceil((new Date(iso).getTime() - Date.now()) / 3_600_000));
 }

@@ -13,6 +13,8 @@ import { matchResumeToJobs, matchResumeTextToJobs } from '../../resume-matcher/i
 import { connectToDb } from '../../db/connection.js';
 import { ObjectId } from 'mongodb';
 import { Analytics } from '../../models/analyticsModel.js';
+import { getUserMatchFeedback, getGloballyFlaggedJobIds } from '../../db/index.js';
+import { buildFeedbackProfile, isHidden } from '../../matching/index.js';
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -60,9 +62,16 @@ export function attachResumeMatchRoutes(router) {
                 return res.status(404).json({ success: false, error: 'No cached results. Click "Find my matches" to run.' });
             }
 
+            // Jobs dismissed since the run ("Not interested") stay hidden.
+            let results = user.smartMatchCache.results || [];
+            try {
+                const feedback = buildFeedbackProfile(await getUserMatchFeedback(req.user.id), await getGloballyFlaggedJobIds());
+                results = results.filter(r => !isHidden(feedback, { _id: r.jobId, Company: r.job?.Company }));
+            } catch { /* serve unfiltered rather than fail */ }
             res.json({
                 success: true,
                 ...user.smartMatchCache,
+                results,
                 cached: true,
             });
         } catch (error) {

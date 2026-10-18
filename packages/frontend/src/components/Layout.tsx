@@ -9,7 +9,9 @@ import { useAuth } from '../context/AuthContext';
 import { useAppliedJobs } from '../context/AppliedJobsContext';
 import { useTheme } from '../theme/ThemeProvider';
 import Footer from './Footer';
+import BrandLogo from './BrandLogo';
 import FeedbackWidget from './FeedbackWidget';
+import AccordionFocus from './AccordionFocus';
 import { Toast } from './Toast';
 import ApplyConfirmToast from './ApplyConfirmToast';
 import { Button } from './ui';
@@ -163,31 +165,13 @@ export default function Layout({ children }: { children: ReactNode }) {
             justifyContent: 'space-between',
           }}
         >
-          {/* Logo */}
-          <Link
-            to={effIsAdmin ? '/dashboard' : '/'}
-            style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', flexShrink: 0 }}
-            aria-label="English Jobs in Germany home"
-          >
-            <img
-              src="/logo.jpeg"
-              alt=""
-              style={{ height: isMobileNav ? 28 : 32, width: 'auto', display: 'block', flexShrink: 0 }}
-              loading="eager"
-              decoding="async"
-            />
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1, flexShrink: 0 }}>
-              <span style={{ fontFamily: "'Playfair Display',serif", fontSize: isMobileNav ? '0.95rem' : '1.1rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
-                English <span style={{ color: 'var(--primary)' }}>Jobs</span>
-              </span>
-              {!isMobileNav && (
-                <span style={{ fontSize: '0.55rem', color: 'var(--text-secondary)', letterSpacing: '0.15em', textTransform: 'uppercase', marginTop: 2 }}>in Germany</span>
-              )}
-              {effIsAdmin && (
-                <span style={{ fontSize: '0.58rem', fontWeight: 700, background: 'var(--danger-soft)', color: 'var(--danger)', borderRadius: 4, padding: '1px 5px', letterSpacing: '0.05em', alignSelf: 'flex-start', marginTop: 2 }}>ADMIN</span>
-              )}
-            </div>
-          </Link>
+          {/* Logo — shared lockup (components/BrandLogo). */}
+          <BrandLogo
+            size={isMobileNav ? 'sm' : 'md'}
+            href={effIsAdmin ? '/admin' : '/'}
+            tagline={!isMobileNav}
+            badge={effIsAdmin ? 'Admin' : undefined}
+          />
 
           {!isMobileNav && (
             <DesktopNav links={links} isActive={isActive} unreadFeedback={unreadFeedback} isPremium={effIsPremium} />
@@ -281,6 +265,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         {children}
       </main>
       <Footer />
+      <AccordionFocus />
       <ConnectionBanner />
       {!hideFeedbackWidget && <FeedbackWidget />}
     </div>

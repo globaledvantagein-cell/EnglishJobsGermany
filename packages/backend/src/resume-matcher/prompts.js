@@ -91,6 +91,7 @@ SCORING RULES:
 - Skills equivalence: React = React.js = ReactJS, AWS = Amazon Web Services.
 - german_level_detail matters: "C1 required" with no-German candidate = strong penalty. "nice to have" = minor penalty.
 - visa_sponsorship "available" + visa_required candidate = no penalty. "not_available" + visa_required = strong penalty.
+- COVERAGE: return exactly one object for EVERY job listed, in any order — N jobs in, N objects out. Never skip a job, even a poor match: score it low instead.
 
 Return: [{ "index": 0, "jobId": "<_id>", "score": 85, "reason": "one line" }, ...]`;
 }
@@ -120,5 +121,6 @@ RULES:
 - bonus_skills: candidate skills not required but add value (with category).
 - german_fit: compare candidate's German proficiency against job's german_level_detail.
 - visa_fit: compare candidate's visa_required against job's visa_sponsorship.
-- Be specific in reasoning — name the skills, levels, and gaps.`;
+- Be specific in reasoning — name the skills, levels, and gaps.
+- COVERAGE: return exactly one object for EVERY job listed — N jobs in, N objects out. Never skip a job.`;
 }

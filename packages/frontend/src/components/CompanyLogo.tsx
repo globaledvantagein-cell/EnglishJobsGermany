@@ -26,11 +26,15 @@ export default function CompanyLogo({ companyName, domain, size = 40 }: {
   const setLoaded = (v: boolean) => setState(s => (s.loaded === v ? s : { ...s, loaded: v }));
   const imgRef = useRef<HTMLImageElement | null>(null);
 
-  // Cached images fire `load` before React attaches the handler; check once
-  // the node exists via a ref callback rather than an effect.
+  // Server-rendered images can finish — load OR fail — before React attaches
+  // the handlers, so check once the node exists via a ref callback. A failed
+  // image is `complete` with no pixels; without this it stayed invisible
+  // (blank box) instead of falling back to the initial.
   const attach = (img: HTMLImageElement | null) => {
     imgRef.current = img;
-    if (img && img.complete && img.naturalWidth > 0) queueMicrotask(() => setLoaded(true));
+    if (!img || !img.complete) return;
+    if (img.naturalWidth > 0) queueMicrotask(() => setLoaded(true));
+    else queueMicrotask(() => setImgErr(true));
   };
 
   const url = companyLogoUrl({ companyName, domain });

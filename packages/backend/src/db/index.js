@@ -93,6 +93,15 @@ export {
     getCategories,
 } from './careerGuide.js';
 
+// ── Match Feedback (personalised ranking signal) ──
+export {
+    recordMatchEvent,
+    recordImpressions,
+    deleteMatchDismissal,
+    getUserMatchFeedback,
+    getGloballyFlaggedJobIds,
+} from './matchFeedbackQueries.js';
+
 // ── Feedback Queries ──
 export {
     saveFeedback,

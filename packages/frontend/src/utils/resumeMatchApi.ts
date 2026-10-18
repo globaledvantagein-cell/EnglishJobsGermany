@@ -99,6 +99,18 @@ export interface MatchResultJob {
   Location: string;
   IsRemote: boolean;
   ApplicationURL: string;
+  WorkplaceType?: string;
+  PostedDate?: string | null;
+  Category?: string;
+}
+
+/** Deterministic fit breakdown attached by the backend's matching engine. */
+export interface MatchFitInfo {
+  score: number;
+  confidence: number;
+  dimensions: import('./skillMatchApi').FitDimensions;
+  requiredCount: number | null;
+  matchedRequired: number | null;
 }
 
 export interface MatchResult {
@@ -114,6 +126,10 @@ export interface MatchResult {
   visa_fit: string | null;
   reasoning: string;
   job: MatchResultJob;
+  /** AI-only score before blending with the engine fit. */
+  ai_score?: number;
+  fit?: MatchFitInfo | null;
+  badges?: string[];
 }
 
 export interface MatchMeta {

@@ -6,9 +6,19 @@
 //
 // A single bad batch (Gemini error / unparseable JSON) is logged and SKIPPED.
 // Only when EVERY batch in a pass fails do we throw.
+//
+// Candidates arrive ranked by the deterministic fit engine (filterJobs.js).
+// Two guards against LLM ranking noise:
+//   - Pass A input is shuffled, so batches are not ordered best-first: LLM
+//     list rankers are measurably position-biased (see e.g. arXiv 2608.03091),
+//     and a best-first order would just echo the engine's ranking back.
+//   - The final score blends the AI score with the engine's fit score, which
+//     steadies run-to-run variance and keeps tiers consistent with the
+//     breakdown the UI shows.
 
 import { connectToDb } from '../db/connection.js';
 import { callGemini } from '../gemini/geminiClient.js';
+import { jobBadges } from '../matching/index.js';
 import {
     getPassASystemPrompt,
     getPassBSystemPrompt,
@@ -37,6 +47,24 @@ const PASS_B_BATCH_SIZE = 15;
 const PASS_A_TOP_N = 15;
 const PASS_B_TOP_N = 15;
 const DELAY_BETWEEN_BATCHES_MS = 250;
+
+// Share of the final score taken from the AI; the rest is the engine's fit.
+const AI_WEIGHT = 0.7;
+
+function shuffled(items) {
+    const copy = [...items];
+    for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+}
+
+/** AI score (0–100) blended with the engine's fit (0–1). */
+function blendedScore(aiScore, fit) {
+    if (!fit) return Math.round(aiScore);
+    return Math.round(AI_WEIGHT * aiScore + (1 - AI_WEIGHT) * fit.score * 100);
+}
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -163,6 +191,13 @@ async function runPassA(profile, jobs) {
                 if (Number.isNaN(score)) continue;
                 scored.push({ job, score, reason: row.reason || '' });
             }
+
+            // Lightweight models sometimes return fewer rows than jobs. A
+            // skipped job keeps competing on its engine fit instead of vanishing.
+            const answered = new Set(scored.map(entry => entry.job));
+            for (const job of batch) {
+                if (!answered.has(job) && job._fit) scored.push({ job, score: Math.round(job._fit.score * 100), reason: '', aiSkipped: true });
+            }
         } catch (error) {
             failedBatches++;
             console.warn(`[ResumeMatch] Pass A batch ${b + 1}/${batches.length} failed: ${error.message}`);
@@ -176,7 +211,7 @@ async function runPassA(profile, jobs) {
     }
 
     return scored
-        .sort((a, b) => b.score - a.score)
+        .sort((a, b) => blendedScore(b.score, b.job._fit) - blendedScore(a.score, a.job._fit))
         .slice(0, PASS_A_TOP_N);
 }
 
@@ -184,7 +219,8 @@ async function runPassA(profile, jobs) {
  * Pass B — deep scoring over the shortlist. Returns up to PASS_B_TOP_N enriched
  * results sorted by score descending.
  */
-async function runPassB(profile, shortlistedJobs) {
+async function runPassB(profile, shortlist) {
+    const shortlistedJobs = shortlist.map(entry => entry.job);
     const batches = chunk(shortlistedJobs, PASS_B_BATCH_SIZE);
     const results = [];
     let failedBatches = 0;
@@ -208,15 +244,30 @@ async function runPassB(profile, shortlistedJobs) {
                     job = batch.find(j => String(j._id) === String(row.jobId) || String(j.JobID) === String(row.jobId));
                 }
                 if (!job) continue;
-                const score = Number(row.score);
-                if (Number.isNaN(score)) continue;
+                const aiScore = Number(row.score);
+                if (Number.isNaN(aiScore)) continue;
+                const fit = job._fit || null;
+                const score = blendedScore(aiScore, fit);
+                const aiMissing = Array.isArray(row.missing_skills) ? row.missing_skills : [];
 
                 results.push({
                     jobId: String(job._id),
                     score,
+                    ai_score: aiScore,
                     tier: tierFromScore(score),
+                    // Engine breakdown (skills, experience, seniority, role, preferences).
+                    fit: fit ? {
+                        score: Math.round(fit.score * 100),
+                        confidence: Math.round(fit.confidence * 100),
+                        dimensions: fit.dimensions,
+                        requiredCount: fit.requiredCount,
+                        matchedRequired: fit.matchedRequired,
+                        semantic: job._semantic != null ? Math.round(job._semantic * 100) / 100 : null,
+                    } : null,
+                    badges: jobBadges(job),
                     matched_skills: Array.isArray(row.matched_skills) ? row.matched_skills : [],
-                    missing_skills: Array.isArray(row.missing_skills) ? row.missing_skills : [],
+                    // The AI sometimes omits gaps; fall back to the engine's.
+                    missing_skills: aiMissing.length > 0 ? aiMissing : (fit?.missingSkills ?? []),
                     bonus_skills: Array.isArray(row.bonus_skills) ? row.bonus_skills : [],
                     experience_fit: row.experience_fit || null,
                     location_fit: row.location_fit || null,
@@ -229,6 +280,9 @@ async function runPassB(profile, shortlistedJobs) {
                         Location: job.Location,
                         IsRemote: job.IsRemote,
                         ApplicationURL: job.ApplicationURL,
+                        WorkplaceType: job.WorkplaceType,
+                        PostedDate: job.PostedDate,
+                        Category: job.Category,
                     },
                 });
             }
@@ -242,6 +296,48 @@ async function runPassB(profile, shortlistedJobs) {
 
     if (failedBatches === batches.length) {
         throw new Error('[ResumeMatch] Pass B failed — all batches errored');
+    }
+
+    // Shortlisted jobs the deep pass skipped (or whose batch failed) keep
+    // their Pass A score and the engine's skill breakdown, without reasoning.
+    const covered = new Set(results.map(r => r.jobId));
+    for (const entry of shortlist) {
+        const job = entry.job;
+        if (covered.has(String(job._id))) continue;
+        const fit = job._fit || null;
+        const score = blendedScore(entry.score, fit);
+        results.push({
+            jobId: String(job._id),
+            score,
+            ai_score: entry.aiSkipped ? null : entry.score,
+            tier: tierFromScore(score),
+            fit: fit ? {
+                score: Math.round(fit.score * 100),
+                confidence: Math.round(fit.confidence * 100),
+                dimensions: fit.dimensions,
+                requiredCount: fit.requiredCount,
+                matchedRequired: fit.matchedRequired,
+            } : null,
+            badges: jobBadges(job),
+            matched_skills: fit?.matchedSkills ?? [],
+            missing_skills: fit?.missingSkills ?? [],
+            bonus_skills: [],
+            experience_fit: null,
+            location_fit: null,
+            german_fit: null,
+            visa_fit: null,
+            reasoning: entry.reason || '',
+            job: {
+                JobTitle: job.JobTitle,
+                Company: job.Company,
+                Location: job.Location,
+                IsRemote: job.IsRemote,
+                ApplicationURL: job.ApplicationURL,
+                WorkplaceType: job.WorkplaceType,
+                PostedDate: job.PostedDate,
+                Category: job.Category,
+            },
+        });
     }
 
     return results
@@ -261,9 +357,8 @@ export async function scoreJobs(profile, jobs) {
     // parsedRequirements, which the RAM cache no longer carries.
     const hydratedJobs = await hydrateScoringFields(jobs);
 
-    const shortlist = await runPassA(profile, hydratedJobs);
+    const shortlist = await runPassA(profile, shuffled(hydratedJobs));
     if (shortlist.length === 0) return [];
 
-    const shortlistedJobs = shortlist.map(entry => entry.job);
-    return runPassB(profile, shortlistedJobs);
+    return runPassB(profile, shortlist);
 }

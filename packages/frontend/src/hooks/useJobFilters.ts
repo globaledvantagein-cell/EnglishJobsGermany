@@ -38,12 +38,16 @@ export {
   type FilterDropdownOption,
 } from './jobFilterTypes';
 
-export function useJobFilters(initialCompany?: string, initialSearch?: string) {
+export function useJobFilters(initialCompany?: string, initialSearch?: string, initialOverrides?: Partial<FilterState>) {
+  // Overrides come from URL params (?visa=1, ?experience=entry, …); keyed by
+  // their JSON so a new object with the same values doesn't reset the filters.
+  const overridesKey = JSON.stringify(initialOverrides ?? {});
   const initialState = useMemo<FilterState>(() => ({
     ...DEFAULT_FILTERS,
+    ...(JSON.parse(overridesKey) as Partial<FilterState>),
     company: initialCompany ? [initialCompany] : [],
     search: initialSearch || DEFAULT_FILTERS.search,
-  }), [initialCompany, initialSearch]);
+  }), [initialCompany, initialSearch, overridesKey]);
 
   // UI state — updates immediately
   const [filters, setFiltersInternal] = useState<FilterState>(initialState);

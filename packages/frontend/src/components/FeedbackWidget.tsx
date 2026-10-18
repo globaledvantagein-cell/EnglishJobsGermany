@@ -1,15 +1,49 @@
 'use client';
 
+/**
+ * Floating feedback button + form.
+ *
+ *   - Signed-in users are never asked who they are: the API identifies them
+ *     from their token and takes name/email from the account.
+ *   - Guests get one optional email field, only for when they want a reply.
+ *   - A Bug / Idea / Other choice tailors the prompt and lets the admin inbox
+ *     triage; the current page path is attached automatically.
+ *   - Desktop: popover above the button. Phone: bottom sheet with a backdrop.
+ *
+ * Styles live in globals.css (.fb-*). The button hides while the cookie
+ * banner is open and rises above fixed bottom bars via --bottom-bar-inset.
+ */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MessageSquare, X } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { Bug, Check, Lightbulb, MessageSquare, X } from 'lucide-react';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import { useAuth } from '../context/AuthContext';
 import { apiPost } from '../utils/jobApi';
+
+type Category = 'bug' | 'idea' | 'other';
+
+const CATEGORIES: ReadonlyArray<{ value: Category; label: string; Icon: typeof Bug; placeholder: string }> = [
+  { value: 'bug', label: 'Bug', Icon: Bug, placeholder: 'What went wrong, and what did you expect to happen?' },
+  { value: 'idea', label: 'Idea', Icon: Lightbulb, placeholder: 'What would make English Jobs Germany better for you?' },
+  { value: 'other', label: 'Other', Icon: MessageSquare, placeholder: 'Tell us anything — we read every message.' },
+];
+
+const MAX_WORDS = 200;
 
 export default function FeedbackWidget() {
   const isMobile = useMediaQuery('(max-width: 767px)');
+  const pathname = usePathname();
+  const { isAuthenticated, user } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState('');
+  // The form is only rendered once the panel has been opened. Its contents
+  // depend on sign-in state, which the server can't know, so rendering it
+  // during SSR caused a hydration mismatch (guest email field on the server,
+  // "Sending as …" in the browser).
+  const [hasOpened, setHasOpened] = useState(false);
+  useEffect(() => { if (open) setHasOpened(true); }, [open]);
+  const [category, setCategory] = useState<Category>('idea');
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,170 +51,170 @@ export default function FeedbackWidget() {
   const [error, setError] = useState('');
 
   const words = useMemo(() => message.trim().split(/\s+/).filter(Boolean).length, [message]);
-  const overWordLimit = words > 200;
-  const showWordCounter = message.trim().length > 0;
+  const overWordLimit = words > MAX_WORDS;
+  const active = CATEGORIES.find(c => c.value === category)!;
 
-  // Close on outside click + Esc
+  // Close on outside click + Esc; focus the message when opening.
   useEffect(() => {
     if (!open) return;
+    const focusTimer = setTimeout(() => textareaRef.current?.focus(), 60);
     const onDown = (e: MouseEvent) => {
-      if (!containerRef.current) return;
-      if (!containerRef.current.contains(e.target as Node)) setOpen(false);
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
     };
     const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onEsc);
     return () => {
+      clearTimeout(focusTimer);
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('keydown', onEsc);
     };
   }, [open]);
 
-  // Auto-dismiss on success
+  // Auto-dismiss on success, then reset for the next message.
   useEffect(() => {
     if (!success) return;
-    const t = setTimeout(() => { setSuccess(false); setOpen(false); }, 2000);
+    const t = setTimeout(() => { setSuccess(false); setOpen(false); }, 2500);
     return () => clearTimeout(t);
   }, [success]);
 
-  const validate = () => {
-    if (!name.trim())  { setError('Please enter your name'); return false; }
-    if (!email.trim()) { setError('Please enter your email'); return false; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Please enter a valid email'); return false; }
-    if (!message.trim()) { setError('Please enter a message'); return false; }
-    if (words < 1 || words > 200) { setError('Message must be between 1 and 200 words'); return false; }
-    setError('');
-    return true;
-  };
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) return;
-
+  const submit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (loading) return;
+    if (!message.trim()) { setError('Please write a message first.'); return; }
+    if (overWordLimit) { setError(`Please keep it under ${MAX_WORDS} words.`); return; }
+    const guestEmail = email.trim();
+    if (!isAuthenticated && guestEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail)) {
+      setError('That email doesn’t look right — fix it or leave it empty.');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
-      await apiPost('/api/feedback', { name, email, message, source: 'floating-widget' }, { noAuth: true });
-      setName(''); setEmail(''); setMessage('');
+      // Signed in: the token identifies the sender, so no name/email is sent.
+      await apiPost('/api/feedback', {
+        message: message.trim(),
+        category,
+        page: pathname,
+        source: 'floating-widget',
+        ...(!isAuthenticated && guestEmail && { email: guestEmail }),
+      });
+      setMessage('');
+      setEmail('');
       setSuccess(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send feedback');
+      setError(err instanceof Error ? err.message : 'Couldn’t send your feedback. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void submit();
+  };
+
   return (
     <>
-      {isMobile && open && (
-        <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.24)', zIndex: 9989 }} />
-      )}
+      {isMobile && open && <div className="fb-backdrop" onClick={() => setOpen(false)} />}
 
-      <div ref={containerRef} style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 9991 }}>
+      <div ref={containerRef} className="feedback-fab" data-mobile={isMobile}>
         <div
-          style={{
-            position: 'fixed', right: 20, bottom: 68,
-            width: isMobile ? 'calc(100vw - 32px)' : 320,
-            maxWidth: 360,
-            background: 'var(--bg-surface-2)',
-            border: '1px solid var(--border)',
-            borderRadius: 14,
-            boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
-            padding: 18, zIndex: 9991,
-            opacity: open ? 1 : 0,
-            transform: open ? 'translateY(0)' : 'translateY(8px)',
-            pointerEvents: open ? 'auto' : 'none',
-            transition: 'opacity 0.2s, transform 0.2s',
-          }}
+          className="fb-panel"
+          data-open={open}
+          role="dialog"
+          aria-modal={isMobile ? true : undefined}
+          aria-labelledby="fb-title"
+          inert={!open}
         >
-          {success ? (
-            <div style={{ minHeight: 144, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <p style={{ margin: 0, color: 'var(--success)', fontSize: '0.86rem', fontWeight: 600 }}>✓ Thanks for your feedback!</p>
+          {!hasOpened && !open ? null : success ? (
+            <div className="fb-success">
+              <span className="fb-success-icon"><Check size={20} /></span>
+              <p className="fb-success-title">Thanks — message received.</p>
+              <p className="fb-success-sub">We read every one{isAuthenticated ? ' and may reply by email.' : '.'}</p>
             </div>
           ) : (
-            <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                <p style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)' }}>Send us feedback</p>
-                <button
-                  type="button"
-                  aria-label="Close feedback"
-                  onClick={() => setOpen(false)}
-                  style={{ width: 28, height: 28, border: 'none', background: 'transparent', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, cursor: 'pointer' }}
-                >
+            <form onSubmit={submit} className="fb-form" noValidate>
+              <div className="fb-head">
+                <p id="fb-title" className="fb-title">Send feedback</p>
+                <button type="button" className="fb-close" aria-label="Close feedback" onClick={() => setOpen(false)}>
                   <X size={16} />
                 </button>
               </div>
 
-              <p style={{ margin: '0 0 2px', fontSize: '0.76rem', color: 'var(--text-muted)' }}>Bug, idea, or just say hi</p>
+              <div className="fb-types" role="radiogroup" aria-label="Feedback type">
+                {CATEGORIES.map(({ value, label, Icon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={category === value}
+                    className="fb-type"
+                    onClick={() => setCategory(value)}
+                  >
+                    <Icon size={15} /> {label}
+                  </button>
+                ))}
+              </div>
 
-              <input value={name} onChange={e => setName(e.target.value)} placeholder="Your name" maxLength={100}
-                style={inputStyle} />
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" maxLength={200}
-                style={inputStyle} />
-              <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Your message..." maxLength={5000}
-                style={{ ...inputStyle, minHeight: 80, padding: '8px 10px', resize: 'vertical', lineHeight: 1.45, height: 'auto' }} />
-
-              {showWordCounter && (
-                <p style={{ margin: 0, fontSize: '0.65rem', color: overWordLimit ? 'var(--danger)' : 'var(--text-muted)', textAlign: 'right' }}>
-                  {words} / 200 words
-                </p>
+              <label className="fb-sr" htmlFor="fb-message">Your message</label>
+              <textarea
+                id="fb-message"
+                ref={textareaRef}
+                className="fb-input fb-textarea"
+                value={message}
+                onChange={e => { setMessage(e.target.value); if (error) setError(''); }}
+                onKeyDown={onKeyDown}
+                placeholder={active.placeholder}
+                maxLength={5000}
+              />
+              {words > MAX_WORDS - 50 && (
+                <p className="fb-count" data-over={overWordLimit}>{words} / {MAX_WORDS} words</p>
               )}
 
-              <button
-                type="submit"
-                disabled={loading || overWordLimit}
-                style={{
-                  height: 36, width: '100%', border: 'none', borderRadius: 8,
-                  background: loading || overWordLimit ? 'var(--text-muted)' : 'var(--primary)',
-                  color: '#fff', fontSize: '0.82rem', fontWeight: 600,
-                  cursor: loading || overWordLimit ? 'not-allowed' : 'pointer',
-                  marginTop: 4, fontFamily: 'inherit',
-                }}
-              >
-                {loading ? 'Sending...' : 'Send feedback'}
-              </button>
+              {isAuthenticated ? (
+                <p className="fb-identity">
+                  <span className="fb-avatar" aria-hidden="true">{(user?.name || user?.email || '?').charAt(0).toUpperCase()}</span>
+                  Sending as <strong>{user?.email || user?.name}</strong>
+                </p>
+              ) : (
+                <>
+                  <label className="fb-label" htmlFor="fb-email">Email <span>(optional — only if you’d like a reply)</span></label>
+                  <input
+                    id="fb-email"
+                    type="email"
+                    className="fb-input"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    maxLength={200}
+                  />
+                </>
+              )}
 
-              {error && <p style={{ margin: 0, color: 'var(--danger)', fontSize: '0.74rem' }}>{error}</p>}
+              {error && <p className="fb-error" role="alert">{error}</p>}
+
+              <div className="fb-foot">
+                <span className="fb-hint">{isMobile ? 'Includes this page’s address' : 'Ctrl/⌘ + Enter to send'}</span>
+                <button type="submit" className="fb-send" disabled={loading || !message.trim() || overWordLimit}>
+                  {loading ? 'Sending…' : 'Send'}
+                </button>
+              </div>
             </form>
           )}
         </div>
 
         <button
           type="button"
-          onClick={() => setOpen(p => !p)}
-          aria-label={open ? 'Close feedback' : 'Open feedback'}
-          style={{
-            height: isMobile ? 36 : 38,
-            width: isMobile ? 36 : 'auto',
-            padding: isMobile ? 0 : '0 14px',
-            borderRadius: isMobile ? '50%' : 20,
-            background: 'var(--bg-surface-2)',
-            border: '1px solid var(--border)',
-            color: 'var(--text-muted)',
-            fontSize: '0.78rem', fontWeight: 500,
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-            cursor: 'pointer', transition: 'border-color 0.2s, color 0.2s',
-            zIndex: 9990, fontFamily: 'inherit',
-          }}
+          className="fb-trigger"
+          onClick={() => setOpen(previous => !previous)}
+          aria-label={open ? 'Close feedback' : 'Send feedback'}
+          aria-expanded={open}
         >
-          {open ? <X size={14} /> : <MessageSquare size={14} />}
-          {!isMobile && <span>{open ? '✕ Close' : 'Feedback'}</span>}
+          {open ? <X size={isMobile ? 18 : 15} /> : <MessageSquare size={isMobile ? 18 : 15} />}
+          {!isMobile && <span>{open ? 'Close' : 'Feedback'}</span>}
         </button>
       </div>
     </>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  height: 34,
-  background: 'var(--bg-surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 8,
-  padding: '0 10px',
-  fontSize: '0.8rem',
-  color: 'var(--text-primary)',
-  outline: 'none',
-  fontFamily: 'inherit',
-};

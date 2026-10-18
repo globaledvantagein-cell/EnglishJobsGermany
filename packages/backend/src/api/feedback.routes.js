@@ -8,13 +8,22 @@ import {
     getFeedbackStats
 } from '../db/index.js';
 import { createFeedback } from '../models/feedbackModel.js';
-import { verifyToken, verifyAdmin } from '../middleware/authMiddleware.js';
+import { verifyToken, verifyAdmin, softVerifyToken } from '../middleware/authMiddleware.js';
+import { getUserProfile } from '../db/index.js';
 
 export const feedbackRouter = Router();
 
-feedbackRouter.post('/', async (req, res) => {
+// Open to everyone. A signed-in sender is identified from their token, so the
+// widget doesn't ask them for a name or email — the account supplies both.
+feedbackRouter.post('/', softVerifyToken, async (req, res) => {
     try {
-        const { name, email, message, source } = req.body;
+        const { message, source, category, page } = req.body;
+        let { name, email } = req.body;
+        if (req.user?.id) {
+            const profile = await getUserProfile(req.user.id).catch(() => null);
+            name = profile?.name || name;
+            email = profile?.email || email;
+        }
 
         if (!message || !message.trim()) {
             return res.status(400).json({ error: 'Message is required' });
@@ -44,6 +53,8 @@ feedbackRouter.post('/', async (req, res) => {
             email,
             message,
             source: source || 'footer',
+            category,
+            page,
             userAgent: req.headers['user-agent'] || null,
             ipHash,
             userId: req.user?.id || null,

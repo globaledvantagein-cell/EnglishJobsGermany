@@ -203,10 +203,16 @@ export async function callGeminiDetailed({ model, contents, systemInstruction, l
                 `status=${status ?? 'n/a'} msg=${error.message}`
             );
 
-            // Forbidden — the key is bad for good. Next key, same cycle budget.
-            if (status === 403) {
+            // The key is unusable for this process — next key, same cycle
+            // budget. Google reports a revoked/mistyped key as 400
+            // API_KEY_INVALID (not 403) and depleted prepaid credits as 402;
+            // neither recovers mid-run, and without retiring the key every
+            // request routed to it fails.
+            const invalidKey = status === 400 && /API_KEY_INVALID|API key not valid/i.test(`${error.body || ''} ${error.message}`);
+            if (status === 403 || status === 401 || status === 402 || invalidKey) {
                 markKeyDead(index);
-                console.error(`[Gemini] Key #${index + 1} permanently disabled — 403 Forbidden`);
+                const why = invalidKey ? 'API key not valid' : status === 402 ? '402 prepaid credits depleted' : String(status);
+                console.error(`[Gemini] Key #${index + 1} disabled until restart — ${why}`);
                 continue;
             }
 

@@ -9,18 +9,21 @@ import { parseResume, parseResumeFromText } from './parseResume.js';
 import { filterJobs } from './filterJobs.js';
 import { scoreJobs } from './scoreJobs.js';
 import { getCacheStats } from '../cache/index.js';
-import { saveMatchProfile, getMatchProfile } from '../db/index.js';
+import { saveMatchProfile, getMatchProfile, getUserMatchFeedback, getGloballyFlaggedJobIds } from '../db/index.js';
+import { buildFeedbackProfile } from '../matching/index.js';
 
 function md5(buffer) {
     return crypto.createHash('md5').update(buffer).digest('hex');
 }
 
-function buildMeta(totalJobsSearched, afterHardFilter, startTime, skippedParse) {
+function buildMeta(totalJobsSearched, afterHardFilter, scoredByAi, startTime, skippedParse) {
     const parseCalls = skippedParse ? 0 : 1;
-    const geminiCallsUsed = parseCalls + Math.ceil(afterHardFilter / 50) + 2;
+    // Pass A batches of 25 + one Pass B batch.
+    const geminiCallsUsed = parseCalls + Math.ceil(scoredByAi / 25) + 1;
     return {
         totalJobsSearched,
         afterHardFilter,
+        scoredByAi,
         processingTimeMs: Date.now() - startTime,
         geminiCallsUsed,
         profileReused: skippedParse,
@@ -60,7 +63,7 @@ async function runPipeline(parseFn, userId, resumeHash) {
         }
     }
 
-    // ── Merge job preferences from user doc ────────────────────────────
+    // ── Merge job preferences + learned feedback from the user doc ─────
     if (userId) {
         try {
             const stored = await getMatchProfile(userId);
@@ -68,10 +71,16 @@ async function runPipeline(parseFn, userId, resumeHash) {
                 profile._jobPreferences = stored.jobPreferences;
             }
         } catch { /* preferences are optional */ }
+        try {
+            const [events, flagged] = await Promise.all([getUserMatchFeedback(userId), getGloballyFlaggedJobIds()]);
+            profile._feedback = buildFeedbackProfile(events, flagged);
+        } catch (err) {
+            console.warn('[ResumeMatch] Feedback unavailable, ranking without it:', err.message);
+        }
     }
 
-    // ── Filter ─────────────────────────────────────────────────────────
-    const filteredJobs = filterJobs(profile);
+    // ── Candidate selection (deterministic fit engine) ─────────────────
+    const { jobs: filteredJobs, eligibleCount } = await filterJobs(profile);
     const totalJobsSearched = getCacheStats().size;
 
     if (filteredJobs.length === 0) {
@@ -88,7 +97,7 @@ async function runPipeline(parseFn, userId, resumeHash) {
     return {
         profile,
         results,
-        meta: buildMeta(totalJobsSearched, filteredJobs.length, startTime, skippedParse),
+        meta: buildMeta(totalJobsSearched, eligibleCount, filteredJobs.length, startTime, skippedParse),
     };
 }
 

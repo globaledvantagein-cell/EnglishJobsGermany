@@ -1,0 +1,89 @@
+/* ─── Career guide (hub, topic pages, article "more from") ───────────────────
+ * Layout after Wellfound's blog (featured card + grid) and Relocate.me's
+ * topic tiles (studied with REA). Sans-serif, same card language, radius and
+ * motion tokens as the rest of the site.
+ */
+.gd { width: 100%; max-width: 1160px; margin: 0 auto; padding: 20px 24px 72px; color: var(--text-primary); }
+.gd-head { margin-top: 18px; max-width: 760px; }
+.gd-eyebrow { font-size: 12px; font-weight: 850; letter-spacing: 0.12em; text-transform: uppercase; color: var(--primary); }
+.gd-title { margin: 8px 0 0; font-size: clamp(2rem, 4.4vw, 3rem); font-weight: 800; letter-spacing: -0.04em; line-height: 1.05; }
+.gd-lede { margin: 14px 0 0; font-size: 1.05rem; line-height: 1.7; color: var(--text-secondary); }
+.gd-stats { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 14px 0 0; padding: 0; list-style: none; font-size: 0.86rem; color: var(--text-secondary); }
+.gd-stats strong { color: var(--text-primary); }
+
+/* Topic tiles */
+.gd-topics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 28px; }
+.gd-topic {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  padding: 14px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-surface);
+  color: inherit; text-decoration: none; transition: border-color var(--dur-1) ease, transform var(--dur-2) var(--ease-out-soft);
+}
+.gd-topic-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; color: var(--gd-tint); background: color-mix(in srgb, var(--gd-tint) 12%, transparent); }
+.gd-topic-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gd-topic-name { font-size: 0.95rem; font-weight: 750; }
+.gd-topic-blurb { font-size: 0.8rem; line-height: 1.4; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.gd-topic-count { min-width: 28px; height: 24px; padding: 0 8px; border-radius: 999px; display: grid; place-items: center; font-size: 0.75rem; font-weight: 800; background: var(--bg-surface-2); color: var(--text-secondary); }
+.gd-topic[aria-current='page'] { border-color: var(--gd-tint); background: color-mix(in srgb, var(--gd-tint) 6%, var(--bg-surface)); }
+
+/* Sections */
+.gd-section { margin-top: 44px; }
+.gd-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.gd-section-head h2 { margin: 0; font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; }
+.gd-section-head p { margin: 0; font-size: 0.86rem; color: var(--text-secondary); }
+
+/* Article cards */
+.gd-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.gd-card {
+  display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 16px;
+  background: var(--bg-surface); color: inherit; text-decoration: none;
+  transition: transform var(--dur-2) var(--ease-out-soft), box-shadow var(--dur-2) var(--ease-out-soft), border-color var(--dur-1) ease;
+}
+.gd-card-visual {
+  display: grid; place-items: center; height: 120px; color: var(--gd-tint);
+  background:
+    radial-gradient(60% 90% at 20% 20%, color-mix(in srgb, var(--gd-tint) 22%, transparent), transparent 70%),
+    radial-gradient(60% 90% at 85% 90%, color-mix(in srgb, var(--gd-tint) 14%, transparent), transparent 70%),
+    color-mix(in srgb, var(--gd-tint) 6%, var(--bg-surface));
+}
+.gd-card-body { display: flex; flex-direction: column; gap: 6px; padding: 16px 18px 18px; flex: 1; }
+.gd-card-topic { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gd-tint); }
+.gd-card-title { font-size: 1.05rem; font-weight: 750; line-height: 1.35; letter-spacing: -0.01em; }
+.gd-card-desc { font-size: 0.88rem; line-height: 1.55; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.gd-card-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 10px; font-size: 0.8rem; color: var(--text-secondary); }
+.gd-card-cta { display: inline-flex; align-items: center; gap: 4px; font-weight: 750; color: var(--primary); }
+.gd-card[data-featured] { flex-direction: row; min-height: 260px; }
+.gd-card[data-featured] .gd-card-visual { height: auto; flex: 0 0 42%; }
+.gd-card[data-featured] .gd-card-body { padding: 28px 30px; justify-content: center; gap: 10px; }
+.gd-card[data-featured] .gd-card-title { font-size: clamp(1.4rem, 2.6vw, 1.9rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.15; }
+.gd-card[data-featured] .gd-card-desc { font-size: 0.98rem; -webkit-line-clamp: 4; }
+.gd-card[data-featured] .gd-card-meta { margin-top: 8px; }
+
+/* Jobs call to action */
+.gd-cta {
+  display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap;
+  margin-top: 48px; padding: 24px 28px; border-radius: 18px; background: var(--ink); color: var(--paper);
+}
+.gd-cta p { margin: 0; }
+.gd-cta-title { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; }
+.gd-cta-sub { margin-top: 4px !important; font-size: 0.92rem; color: color-mix(in srgb, var(--paper) 72%, transparent); }
+.gd-cta-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.gd-cta a { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 18px; border-radius: 11px; font-weight: 750; text-decoration: none; transition: opacity var(--dur-1) ease; }
+.gd-cta a[data-variant='primary'] { background: var(--paper); color: var(--ink); }
+.gd-cta a:not([data-variant]) { border: 1px solid color-mix(in srgb, var(--paper) 30%, transparent); color: var(--paper); }
+.gd-cta a:hover { opacity: 0.88; }
+
+@media (hover: hover) and (pointer: fine) {
+  .gd-card:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0, 0, 0, 0.07); border-color: var(--gd-tint); }
+  .gd-topic:hover { border-color: var(--gd-tint); }
+}
+@media (max-width: 980px) {
+  .gd-grid, .gd-topics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .gd { padding: 14px 14px 64px; }
+  .gd-grid, .gd-topics { grid-template-columns: minmax(0, 1fr); }
+  .gd-card[data-featured] { flex-direction: column; }
+  .gd-card[data-featured] .gd-card-visual { flex: none; height: 130px; }
+  .gd-card[data-featured] .gd-card-body { padding: 18px; }
+}
+@media (prefers-reduced-motion: reduce) { .gd-card:hover { transform: none; } }

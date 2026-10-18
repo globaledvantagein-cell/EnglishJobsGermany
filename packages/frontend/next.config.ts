@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
   // Standalone output for production deployment (pm2 / docker).
   output: "standalone",
 
+  // Hide the dev-only Next.js badge (bottom-left "N" / route & render
+  // indicator). It never ships to production; this just keeps local UI clean.
+  devIndicators: false,
+
   // Proxy all /api/* calls from the browser to the Express backend so the
   // existing relative-path fetches in utils/jobApi.ts keep working unchanged.
   async rewrites() {

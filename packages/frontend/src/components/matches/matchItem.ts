@@ -5,12 +5,15 @@
  * API types.
  */
 import type { MatchResult, SkillEntry } from '../../utils/resumeMatchApi';
-import type { SkillMatchJob } from '../../utils/skillMatchApi';
+import type { FitDimensions, SkillMatchJob } from '../../utils/skillMatchApi';
 
 export type MatchTier = 'strong' | 'good' | 'partial';
 export type MatchSource = 'smart' | 'skills';
 
 export interface MatchFit { label: string; value: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' }
+
+/** One bar in the "Why this job is a match" breakdown. */
+export interface MatchDimension { key: string; label: string; value: number | null }
 
 export interface MatchItem {
   /** Mongo _id — used for /jobs/:id links and saved jobs. */
@@ -34,6 +37,27 @@ export interface MatchItem {
   reasoning: string | null;
   fits: MatchFit[];
   applyUrl: string | null;
+  /** Breakdown bars; empty when the source has no fit data (older cached runs). */
+  dimensions: MatchDimension[];
+  badges: string[];
+}
+
+/**
+ * Headline bars, grouped like the leading job-match products: experience
+ * level (seniority + years), skills, role & industry, and — only when the user
+ * set any — preferences. Unknown dimensions stay visible as "not stated".
+ */
+export function toDimensions(d?: FitDimensions | null): MatchDimension[] {
+  if (!d) return [];
+  const experienceParts = [d.seniority, d.experience].filter((v): v is number => v != null);
+  const experience = experienceParts.length ? experienceParts.reduce((s, v) => s + v, 0) / experienceParts.length : null;
+  const rows: MatchDimension[] = [
+    { key: 'experience', label: 'Experience level', value: experience },
+    { key: 'skills', label: 'Skills', value: d.skills },
+    { key: 'role', label: 'Role & industry', value: d.role },
+  ];
+  if (d.preferences != null) rows.push({ key: 'preferences', label: 'Your preferences', value: d.preferences });
+  return rows;
 }
 
 export const TIER_LABEL: Record<MatchTier, string> = {
@@ -91,31 +115,39 @@ export function fromSmartMatch(result: MatchResult): MatchItem {
     ? result.tier
     : tierFromScore(result.score, 85, 65);
 
+  const workplace = result.job?.WorkplaceType && result.job.WorkplaceType !== 'Unspecified'
+    ? result.job.WorkplaceType
+    : result.job?.IsRemote ? 'Remote' : null;
+
   return {
     id: String(result.jobId),
     source: 'smart',
     title: result.job?.JobTitle || 'Untitled role',
     company: result.job?.Company || '',
     location: result.job?.Location || '',
-    workplace: result.job?.IsRemote ? 'Remote' : null,
+    workplace,
     experience: null,
-    category: null,
-    postedAt: null,
+    category: result.job?.Category ?? null,
+    postedAt: result.job?.PostedDate ?? null,
     score: Math.round(result.score),
     tier,
     matched: (result.matched_skills ?? []).map(skillName),
     missing: (result.missing_skills ?? []).map(skillName),
     bonus: (result.bonus_skills ?? []).map(skillName),
-    requiredCount: null,
+    requiredCount: result.fit?.requiredCount ?? null,
     reasoning: result.reasoning || null,
     fits,
     applyUrl: result.job?.ApplicationURL || null,
+    dimensions: toDimensions(result.fit?.dimensions),
+    badges: result.badges ?? [],
   };
 }
 
 /**
- * Today's Matches: weighted skill overlap 0–1. Overlap scores run lower than AI
- * scores for the same quality of fit, so the tier bands are lower too.
+ * Today's Matches: deterministic fit 0–1 (no AI). Fit scores run lower than
+ * AI scores for the same quality of match, so the tier bands are lower: on
+ * real profiles the shown matches span ~48–79 (median 59), and Strong ≥ 65
+ * keeps the label for roughly the top 15%.
  */
 export function fromSkillMatch(job: SkillMatchJob): MatchItem {
   const score = Math.round(job.score * 100);
@@ -130,13 +162,15 @@ export function fromSkillMatch(job: SkillMatchJob): MatchItem {
     category: job.Category ?? null,
     postedAt: job.PostedDate ?? null,
     score,
-    tier: tierFromScore(score, 55, 35),
+    tier: tierFromScore(score, 65, 52),
     matched: job.matchedSkills ?? [],
-    missing: [],
+    missing: job.missingSkills ?? [],
     bonus: [],
     requiredCount: job.totalSkillCount ?? null,
     reasoning: null,
     fits: [],
     applyUrl: null,
+    dimensions: toDimensions(job.dimensions),
+    badges: job.badges ?? [],
   };
 }

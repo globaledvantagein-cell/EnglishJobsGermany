@@ -20,6 +20,7 @@ import { apiGet } from '../../utils/jobApi';
 import { AdminUiProvider } from './AdminUiContext';
 import { ADMIN_HOME, ADMIN_NAV, findNavItem, type NavCounter } from './adminNav';
 import './admin.css';
+import BrandLogo from '../BrandLogo';
 
 interface Counts { review: number | null; pendingDecision: number | null; trash: number | null; feedback: number | null }
 
@@ -101,8 +102,9 @@ export default function AdminShell({ children }: { children: ReactNode }) {
         <div className="adm adm-shell" data-density={density} data-collapsed={collapsed ? 'true' : 'false'}>
           <aside className="adm-sidebar" aria-label="Admin navigation">
             <Link to={ADMIN_HOME} className="adm-brand" style={{ color: 'inherit', textDecoration: 'none' }}>
-              <span className="adm-brand-mark">EJ</span>
-              <span className="adm-brand-text">EJG Admin</span>
+              {/* Same lockup as the public site (components/BrandLogo). */}
+              <BrandLogo size="sm" href={null} wordmark={false} />
+              <span className="adm-brand-text"><BrandLogo size="sm" href={null} mark={false} tagline={false} badge="Admin" /></span>
             </Link>
 
             <nav className="adm-nav">

@@ -40,12 +40,12 @@ export function JobListSkeleton({ count = 8 }: { count?: number }) {
  * (sticky rail + card column) so the route transition lands on the same
  * layout the real page will occupy.
  */
-export function BrowsePageSkeleton() {
+export function BrowsePageSkeleton({ variant = 'main' }: { variant?: 'main' | 'remote' } = {}) {
   const line = (w: string | number, h = 12) => (
     <div className="skeleton" style={{ height: h, width: w, borderRadius: 5 }} />
   );
   return (
-    <div style={{ background: 'var(--bg-base)', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <div className="page-wash" data-wash={variant === 'remote' ? 'remote' : 'jobs'} style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <div className="dashboard-shell" style={{ paddingTop: 10 }}>
         <div className="browse-layout">
           <aside className="browse-sidebar" aria-hidden="true">

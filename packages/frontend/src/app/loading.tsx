@@ -2,7 +2,7 @@
 // skeleton so navigations never show a blank or frozen screen.
 export default function Loading() {
   return (
-    <div style={{ background: 'var(--bg-base)', minHeight: '70vh' }} role="status" aria-label="Loading page">
+    <div className="page-wash" data-wash="neutral" style={{ minHeight: '70vh' }} role="status" aria-label="Loading page">
       <div style={{ maxWidth: 1120, margin: '0 auto', padding: 'clamp(24px, 5vw, 48px) clamp(16px, 4vw, 24px)' }}>
         <div className="skeleton" style={{ height: 12, width: 90, marginBottom: 18 }} />
         <div className="skeleton" style={{ height: 34, width: '46%', marginBottom: 12 }} />

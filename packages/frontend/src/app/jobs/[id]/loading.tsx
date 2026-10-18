@@ -1,16 +1,15 @@
-import JobDetailSkeleton from '@/components/JobDetailSkeleton';
-import { Container } from '@/components/ui';
+import { JobDetailSkeleton } from '@/components/job-detail';
 
 // Streamed instantly while page.tsx awaits fetchJobPage on an uncached render — without this a new
 // tab shows a blank page (no shell at all) until the backend responds.
-// Mirrors JobSharePage's outer container so nothing shifts on swap.
+// Same breadcrumb row + .jd frame as page.tsx/JobSharePage so nothing shifts on swap.
 export default function Loading() {
   return (
-    <div style={{ background: 'var(--bg-base)', minHeight: '80vh' }}>
-      <Container style={{ maxWidth: 1000, padding: '24px 24px 48px' }}>
-        <div className="skeleton" style={{ height: 16, width: 120, marginBottom: 20 }} />
+    <div className="page-wash" data-wash="jobs">
+      <div className="jd-crumbs"><div className="skeleton" style={{ height: 14, width: 260, borderRadius: 6 }} /></div>
+      <div className="jd">
         <JobDetailSkeleton />
-      </Container>
+      </div>
     </div>
   );
 }

@@ -116,16 +116,19 @@ export function findCityBySlug(slug: string): City | null {
  * Resolves a free-text job location ("Berlin, Germany", "München") to its
  * canonical city, so a job page can link to the right /city/<slug> hub.
  * Matches the display label and the German/alternate spellings, longest name
- * first so "Frankfurt am Main" can't be shadowed by a shorter entry.
+ * first so "Frankfurt am Main" can't be shadowed by a shorter entry. Names
+ * must match as whole words: a plain substring test sent "Tangerang" to Gera.
  */
-const CITY_MATCHERS: { needle: string; city: City }[] = CANONICAL_CITIES
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const CITY_MATCHERS: { pattern: RegExp; city: City }[] = CANONICAL_CITIES
   .flatMap((city) => [city.label, ...city.aliases].map((n) => ({ needle: n.toLowerCase(), city })))
-  .sort((a, b) => b.needle.length - a.needle.length);
+  .sort((a, b) => b.needle.length - a.needle.length)
+  .map(({ needle, city }) => ({ pattern: new RegExp(`(?<!\\p{L})${escapeRegExp(needle)}(?!\\p{L})`, 'u'), city }));
 
 export function findCityByLocation(location?: string | null): City | null {
   const haystack = (location || '').toLowerCase();
   if (!haystack) return null;
-  return CITY_MATCHERS.find((m) => haystack.includes(m.needle))?.city || null;
+  return CITY_MATCHERS.find((m) => m.pattern.test(haystack))?.city || null;
 }
 
 // Featured cities shown on the homepage "Jobs by City" block.
