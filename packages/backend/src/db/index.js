@@ -118,3 +118,5 @@ export {
     linkVisitorToUser,
     attachVisitor,
 } from '../middleware/visitorMiddleware.js';
+export { recordUserActivity, getUserAnalytics } from './userActivityQueries.js';
+export { saveHealthRun, getHealthHistory } from './healthRunQueries.js';

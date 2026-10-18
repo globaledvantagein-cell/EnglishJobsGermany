@@ -100,7 +100,13 @@ export async function getUserProfile(userId) {
  *   2. Existing user by email     → link Google to that account (preserves role).
  *   3. New user                   → create a Google-only user.
  */
-export async function findOrCreateGoogleUser(payload, { acceptedTerms = false } = {}) {
+/**
+ * `allowCreate: false` is the LOGIN path: it finds (and, for an email account,
+ * links) an existing user but never creates one, returning null instead. Only
+ * the explicit sign-up path may create an account, so a deleted user who
+ * tries to log in is told "no account" rather than silently re-registered.
+ */
+export async function findOrCreateGoogleUser(payload, { acceptedTerms = false, allowCreate = true } = {}) {
     if (!payload?.sub || !payload?.email) {
         throw new Error('Invalid Google payload');
     }
@@ -156,7 +162,8 @@ export async function findOrCreateGoogleUser(payload, { acceptedTerms = false } 
         };
     }
 
-    // 3. Brand new user — must have accepted terms
+    // 3. Brand new user — sign-up only, and must have accepted terms
+    if (!allowCreate) return null;
     if (!acceptedTerms) {
         throw new Error('You must accept the Terms before signing up');
     }

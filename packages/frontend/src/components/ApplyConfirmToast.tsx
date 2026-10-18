@@ -6,6 +6,7 @@
  */
 import { useState, useEffect } from 'react';
 import { CheckCircle, X } from 'lucide-react';
+import { withFeature } from './FeatureGate';
 
 interface Props {
   jobTitle: string;
@@ -16,7 +17,7 @@ interface Props {
 
 const AUTO_DISMISS_MS = 15_000;
 
-export default function ApplyConfirmToast({ jobTitle, company, onConfirm, onDismiss }: Props) {
+function ApplyConfirmToast({ jobTitle, company, onConfirm, onDismiss }: Props) {
   const [visible, setVisible] = useState(false);
   const [exiting, setExiting] = useState(false);
 
@@ -105,3 +106,4 @@ export default function ApplyConfirmToast({ jobTitle, company, onConfirm, onDism
     </div>
   );
 }
+export default withFeature('applyTracking', ApplyConfirmToast);

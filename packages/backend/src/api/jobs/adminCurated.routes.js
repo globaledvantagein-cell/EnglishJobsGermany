@@ -44,6 +44,9 @@ export function attachAdminCuratedRoutes(router) {
             if (error.message.includes('duplicate URL')) {
                 return res.status(409).json({ error: error.message });
             }
+            if (error.message.includes('are required')) {
+                return res.status(400).json({ error: error.message });
+            }
             res.status(500).json({ error: error.message });
         }
     });

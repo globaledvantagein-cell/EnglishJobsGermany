@@ -8,16 +8,18 @@
  *   Row 3  Next jobs in the review queue · Maintenance tools
  *
  * Every panel loads independently, so one slow endpoint never blanks the page.
+ * A second tab (?tab=users) holds Users & growth (AdminUsersGrowth.tsx).
  */
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, ArrowRight } from 'lucide-react';
-import { useNavigate } from '@/compat/router';
+import { useNavigate, useSearchParams } from '@/compat/router';
+import AdminUsersGrowth from './AdminUsersGrowth';
 import { apiGet, apiPost } from '../../utils/jobApi';
 import { useAdminUi } from '../../components/admin/AdminUiContext';
 import { useAdminCounts } from '../../components/admin/AdminShell';
 import { DataTable, type Column } from '../../components/admin/DataTable';
 import {
-  Btn, DefinitionGrid, Dot, Empty, Kpis, LinkBtn, Meter, Page, Panel, Pill, SkeletonRows,
+  Btn, DefinitionGrid, Dot, Empty, Kpis, LinkBtn, Meter, Page, Panel, Pill, Seg, SkeletonRows,
   errorText, fmtAge, fmtNumber, type Tone,
 } from '../../components/admin/primitives';
 import type { IAdminJob } from '../../types';
@@ -100,7 +102,32 @@ const loadHealth = () => apiGet<Health>('/api/admin/health');
 const loadPremium = () => apiGet<PremiumTotals>('/api/analytics/premium');
 const loadQueue = () => apiGet<{ jobs: IAdminJob[] }>('/api/jobs/admin/review?limit=12');
 
+type OverviewTab = 'ops' | 'users';
+
 export default function AdminOverview() {
+  const [params, setParams] = useSearchParams();
+  const tab: OverviewTab = params.get('tab') === 'users' ? 'users' : 'ops';
+  const setTab = (next: OverviewTab) => {
+    const copy = new URLSearchParams(params);
+    if (next === 'ops') copy.delete('tab'); else copy.set('tab', next);
+    setParams(copy);
+  };
+  const tabs = (
+    <Seg<OverviewTab> label="Overview section" value={tab} onChange={setTab}
+      options={[{ value: 'ops', label: 'Operations' }, { value: 'users', label: 'Users & growth' }]} />
+  );
+
+  if (tab === 'users') {
+    return (
+      <Page title="Overview" sub={new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} actions={tabs}>
+        <AdminUsersGrowth />
+      </Page>
+    );
+  }
+  return <OperationsOverview tabs={tabs} />;
+}
+
+function OperationsOverview({ tabs }: { tabs: React.ReactNode }) {
   const navigate = useNavigate();
   const { toast, confirm } = useAdminUi();
   const { counts: navCounts, refreshCounts } = useAdminCounts();
@@ -163,7 +190,7 @@ export default function AdminOverview() {
     <Page
       title="Overview"
       sub={new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
-      actions={<Btn onClick={reloadAll} loading={counts.loading && !!counts.data}><RefreshCw size={13} />Refresh</Btn>}
+      actions={<>{tabs}<Btn onClick={reloadAll} loading={counts.loading && !!counts.data}><RefreshCw size={13} />Refresh</Btn></>}
     >
       <div className="adm-stack">
         <Kpis

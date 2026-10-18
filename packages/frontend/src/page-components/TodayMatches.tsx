@@ -20,11 +20,12 @@ import { usePremiumGate } from '../components/matches/usePremiumGate';
 import { fromSkillMatch } from '../components/matches/matchItem';
 import type { ResumeProfile } from '../utils/resumeMatchApi';
 import { BRAND } from '../theme/brand';
+import { withFeature, FeaturePaused } from '../components/FeatureGate';
 
 type LoadState = 'loading' | 'ready' | 'error';
 type SkillMeta = SkillMatchResponse['meta'] & { jobsWithRequirements?: number };
 
-export default function TodayMatches({ embedded = false }: { embedded?: boolean }) {
+function TodayMatches({ embedded = false }: { embedded?: boolean }) {
   const { token } = useAuth();
   const gate = usePremiumGate('today_matches');
 
@@ -116,3 +117,5 @@ export default function TodayMatches({ embedded = false }: { embedded?: boolean 
 function hoursUntil(iso: string): number {
   return Math.max(1, Math.ceil((new Date(iso).getTime() - Date.now()) / 3_600_000));
 }
+
+export default withFeature('todayMatches', TodayMatches, <FeaturePaused title="Today's Matches" />);

@@ -1,6 +1,7 @@
 import { ObjectId } from 'mongodb';
 import { connectToDb } from '../../db/connection.js';
 import { verifyToken } from '../../middleware/authMiddleware.js';
+import { Analytics } from '../../models/analyticsModel.js';
 
 /**
  * GDPR self-service account deletion.
@@ -58,6 +59,11 @@ export function attachDeleteAccountRoute(authRouter) {
             console.error('[GDPR] Could not enumerate linked visitors:', error.message);
             failed.visitorLookup = error.message;
         }
+
+        await step('userActivityDays', async () => {
+            const r = await db.collection('userActivityDays').deleteMany({ userId: String(user._id) });
+            return r.deletedCount;
+        });
 
         await step('subscriptions', async () => {
             const r = await db.collection('subscriptions').deleteMany({ userId });
@@ -131,6 +137,8 @@ export function attachDeleteAccountRoute(authRouter) {
                 failed,
             });
         }
+
+        Analytics.increment('accountDeletions'); // count only — no PII kept
 
         res.json({
             success: true,

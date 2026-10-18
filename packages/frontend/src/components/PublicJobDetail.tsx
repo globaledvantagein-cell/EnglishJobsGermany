@@ -12,6 +12,7 @@ import { useAppliedJobs } from '../context/AppliedJobsContext';
 import { apiPost, ApiError } from '../utils/jobApi';
 import { JobDetailView } from './job-detail';
 import type { GateUsage } from '../types';
+import { isFeatureOn } from '../hooks/useFeature';
 
 interface Props {
   job: IJob;
@@ -52,6 +53,9 @@ export default function PublicJobDetail({ job, onApplyTracked, onAuthRequired, o
   const applyTarget = job.DirectApplyURL || job.ApplicationURL;
 
   const handleApplyClick = () => {
+    // Kill switch: the apply link itself always works; only tracking stops.
+    if (!isFeatureOn('applyTracking')) return;
+
     // Queue for "Did you apply?" confirmation toast on tab refocus
     addPending(job._id, job.JobTitle, job.Company);
 

@@ -91,8 +91,15 @@ export function attachSigninRoutes(authRouter) {
     // Frontend sends:
     //   { credential: <ID token from @react-oauth/google>,
     //     acceptedTerms: <boolean>,
+    //     mode: 'login' | 'signup',
     //     subscribeToDigest?: <boolean>,
     //     desiredCategories?: <string[]> }
+    //
+    // mode 'login' (the default) NEVER creates an account: an unknown Google
+    // account gets 404 NO_ACCOUNT and the UI points to sign-up. Before this,
+    // a user who deleted their account and "logged in" to check was silently
+    // re-registered. mode 'signup' creates the account, or simply signs in an
+    // existing one (`existing: true`) so a wrong-button click still works.
     //
     // First-time users MUST have acceptedTerms === true. Returning users
     // (already in DB) don't need to re-accept.
@@ -103,6 +110,7 @@ export function attachSigninRoutes(authRouter) {
 
         try {
             const { credential, acceptedTerms, subscribeToDigest, desiredCategories } = req.body;
+            const mode = req.body.mode === 'signup' ? 'signup' : 'login';
             if (!credential) return res.status(400).json({ error: 'Missing credential' });
 
             const ticket = await googleClient.verifyIdToken({
@@ -111,7 +119,15 @@ export function attachSigninRoutes(authRouter) {
             });
             const payload = ticket.getPayload();
 
-            const user = await findOrCreateGoogleUser(payload, {
+            const existingUser = await findOrCreateGoogleUser(payload, { allowCreate: false });
+            if (!existingUser && mode === 'login') {
+                return res.status(404).json({
+                    error: `No account found for ${payload.email}. Sign up to create one.`,
+                    code: 'NO_ACCOUNT',
+                    email: payload.email,
+                });
+            }
+            const user = existingUser ?? await findOrCreateGoogleUser(payload, {
                 acceptedTerms: Boolean(acceptedTerms),
             });
             const token = await finalizeLogin(req, user);
@@ -168,7 +184,7 @@ export function attachSigninRoutes(authRouter) {
                 }
             }
 
-            res.status(200).json({ token, user });
+            res.status(200).json({ token, user, existing: mode === 'signup' && Boolean(existingUser) });
         } catch (error) {
             console.error('[Auth/Google] Failed:', error.message);
             if (error.message?.includes('accept the Terms')) {

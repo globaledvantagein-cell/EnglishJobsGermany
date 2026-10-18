@@ -19,6 +19,7 @@ import { Bug, Check, Lightbulb, MessageSquare, X } from 'lucide-react';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useAuth } from '../context/AuthContext';
 import { apiPost } from '../utils/jobApi';
+import { withFeature } from './FeatureGate';
 
 type Category = 'bug' | 'idea' | 'other';
 
@@ -30,7 +31,7 @@ const CATEGORIES: ReadonlyArray<{ value: Category; label: string; Icon: typeof B
 
 const MAX_WORDS = 200;
 
-export default function FeedbackWidget() {
+function FeedbackWidget() {
   const isMobile = useMediaQuery('(max-width: 767px)');
   const pathname = usePathname();
   const { isAuthenticated, user } = useAuth();
@@ -218,3 +219,5 @@ export default function FeedbackWidget() {
     </>
   );
 }
+
+export default withFeature('feedbackWidget', FeedbackWidget);

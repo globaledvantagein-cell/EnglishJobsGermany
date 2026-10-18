@@ -14,6 +14,7 @@
 import { getAllJobs } from '../cache/index.js';
 import { buildCandidate, feedbackMultiplier, isHidden, scoreJobFit } from '../matching/index.js';
 import { applySemanticSelection } from './semanticSelection.js';
+import { isFeatureEnabled } from '../features/index.js';
 
 // Same AI budget as before: two Pass A batches of 25.
 const MAX_RESULTS = 50;
@@ -66,7 +67,8 @@ export async function filterJobs(profile) {
     scored.sort((a, b) => b._selection - a._selection);
 
     // Meaning-based re-rank of the best candidates (fails open to the above).
-    const ranked = await applySemanticSelection(profile, scored);
+    // Kill switch `semanticRerank` OFF → keep the fit-engine order.
+    const ranked = isFeatureEnabled('semanticRerank') ? await applySemanticSelection(profile, scored) : scored;
 
     // Diversity: the same role posted once per city ("Software Engineer,
     // Platform - Berlin / Hamburg / …") would otherwise fill the AI budget and

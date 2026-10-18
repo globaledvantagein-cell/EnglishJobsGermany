@@ -44,10 +44,18 @@ export const SALARY_REGEX = /((?:EUR|USD|GBP|[$€£])\s?\d{1,3}(?:[.,]\d{3})*(?
 const VERB_BULLET_START = /^(Own|Translate|Partner|Lead|Design|Collaborate|Drive|Build|Create|Develop|Support|Manage|Deliver|Define|Shape|Help|Work|Conduct|Plan|Coordinate|Present|Review|Write|Prototype|Craft)\b/i;
 const LEADING_PUNCTUATION = /^[,;:.!?\)\]\}]+/;
 
+// Invisible boundary marker. Line structure is otherwise flattened away, so a
+// blank line or a new line starting with a bullet ("- item") becomes this
+// marker first and is treated like a sentence end. Never rendered.
+const LINE_BREAK = '\u2063';
+const stripMarker = (value: string) => value.replace(/\u2063/g, ' ').replace(/\s{2,}/g, ' ').trim();
+
 function normalizeText(value: string) {
   return (value || '')
     .replace(/\r\n/g, '\n')
     .replace(/<br\s*\/?\s*>/gi, '\n')
+    .replace(/\n[\t ]*\n\s*/g, ` ${LINE_BREAK}`)
+    .replace(/\n[\t ]*(?=[*\-•·●]\s)/g, ` ${LINE_BREAK}`)
     .replace(/\u00a0/g, ' ')
     .replace(/[\t ]+/g, ' ')
     .replace(/\s*\n\s*/g, ' ')
@@ -57,7 +65,7 @@ function normalizeText(value: string) {
 
 function sentenceBoundaryIndices(text: string) {
   const boundaries = [0];
-  const regex = /[.!?]\s+/g;
+  const regex = /[.!?]\s+|\u2063/g;
   let match = regex.exec(text);
   while (match) {
     boundaries.push(match.index + match[0].length);
@@ -135,7 +143,7 @@ export function splitIntoSections(description: string): Section[] {
 
 function toSentences(text: string): string[] {
   const sentences = text
-    .match(/[^.!?]+[.!?]?/g)
+    .match(/[^.!?\u2063]+[.!?]?/g)
     ?.map(s => s.trim())
     .filter(Boolean) || [];
 
@@ -162,7 +170,7 @@ function looksLikeBulletSentence(sentence: string) {
 
 export function buildBodyBlocks(body: string): BodyBlock[] {
   const sentences = toSentences(body);
-  if (!sentences.length) return [{ type: 'paragraph', text: body }];
+  if (!sentences.length) return [{ type: 'paragraph', text: stripMarker(body) }];
 
   const blocks: BodyBlock[] = [];
   let paragraphBuffer: string[] = [];

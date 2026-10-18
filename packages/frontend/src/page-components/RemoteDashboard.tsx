@@ -20,13 +20,14 @@ import { BRAND } from '../theme/brand';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useRemoteJobFilters, COUNTRY_OPTIONS } from '../hooks/useRemoteJobFilters';
 import type { FilterDropdownOption } from '../hooks/jobFilterTypes';
+import { withFeature, FeaturePaused } from '../components/FeatureGate';
 
 // COUNTRY_OPTIONS is a readonly tuple of {value,label}; the sidebar wants a
 // plain array of the shared option type.
 const COUNTRY_FILTER_OPTIONS: FilterDropdownOption[] =
   COUNTRY_OPTIONS.map(o => ({ value: o.value, label: o.label }));
 
-export default function RemoteDashboard() {
+function RemoteDashboard() {
   const [searchParams] = useSearchParams();
   const companyParam = searchParams.get('company');
   const searchParam  = searchParams.get('search');
@@ -98,3 +99,5 @@ export default function RemoteDashboard() {
     />
   );
 }
+
+export default withFeature('remoteJobs', RemoteDashboard, <FeaturePaused title="Remote jobs" />);

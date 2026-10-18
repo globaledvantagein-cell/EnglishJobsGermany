@@ -15,18 +15,25 @@ import { Button } from './Button';
 
 export type ErrorKind = 'unreachable' | 'generic';
 
-/** Map a thrown error to a kind + short technical hint. */
+/**
+ * Map a thrown error to a kind + short, user-safe hint.
+ *
+ * Only fetch()'s own connection failures count as "unreachable". A TypeError
+ * from a code bug ("can't access property … of undefined") is NOT a network
+ * problem, so the name alone no longer decides it. Raw error messages are
+ * shown only in development; users see an HTTP status or nothing.
+ */
 export function classifyError(err: unknown): { kind: ErrorKind; hint: string } {
   const anyErr = err as { name?: string; status?: number; message?: string } | null;
   const status = anyErr?.status;
   const msg = anyErr?.message || '';
   const isNetwork =
-    anyErr?.name === 'TypeError' ||                 // fetch() could not connect
-    /failed to fetch|networkerror|load failed/i.test(msg) ||
+    /failed to fetch|networkerror|load failed|network request failed/i.test(msg) ||
     status === 502 || status === 503 || status === 504;
+  const devHint = process.env.NODE_ENV !== 'production' && msg ? msg : '';
   return {
     kind: isNetwork ? 'unreachable' : 'generic',
-    hint: status ? `HTTP ${status}` : (msg || 'Unknown error'),
+    hint: status ? `HTTP ${status}` : devHint,
   };
 }
 

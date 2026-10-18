@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { Save, Check } from 'lucide-react';
 import { Card, Button, Badge } from '../ui';
 import { apiGet, apiPatch } from '../../utils/jobApi';
+import { withFeature, FeaturePaused } from '../FeatureGate';
 
 interface JobPreferences {
   salary_min?: number | null;
@@ -26,7 +27,7 @@ function label(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
-export default function JobPreferencesForm() {
+function JobPreferencesForm() {
   const [prefs, setPrefs] = useState<JobPreferences>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -130,3 +131,4 @@ export default function JobPreferencesForm() {
     </Card>
   );
 }
+export default withFeature('jobPreferences', JobPreferencesForm, <FeaturePaused title="Job preferences" />);

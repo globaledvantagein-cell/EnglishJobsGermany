@@ -19,6 +19,7 @@ import { redeemPromoCode, joinWaitlist, fetchWaitlistStatus, ApiError } from '..
 import { track } from '../utils/analytics';
 import { Spinner } from '../components/ui';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import { withFeature, FeaturePaused } from '../components/FeatureGate';
 
 const PLAN_PRICE = '€14.99';
 
@@ -40,7 +41,7 @@ function formatDate(dateStr?: string | null): string {
 
 type WaitlistState = 'checking' | 'idle' | 'joining' | 'joined';
 
-export default function PremiumCheckout() {
+function PremiumCheckout() {
   const nav = useNavigate();
   const { isAuthenticated, isLoading, isPremium, usage, refreshUsage } = useAuth();
   const isMobile = useMediaQuery('(max-width: 767px)');
@@ -398,3 +399,5 @@ export default function PremiumCheckout() {
     </div>
   );
 }
+
+export default withFeature('promoCodes', PremiumCheckout, <FeaturePaused title="Premium invites" />);

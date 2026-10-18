@@ -1,6 +1,14 @@
-import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
+import Login from '@/page-components/Login';
 
-// Legacy /signup → /alerts (mirrors the old react-router <Navigate>).
-export default function SignupRedirect() {
-  redirect('/alerts');
+// Google sign-up. /login never creates accounts; this page is the only place
+// that does (see POST /api/auth/google `mode`).
+export const metadata = { title: 'Sign up', robots: { index: false } };
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <Login mode="signup" />
+    </Suspense>
+  );
 }

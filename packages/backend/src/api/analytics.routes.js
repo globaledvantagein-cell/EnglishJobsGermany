@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getReviewQueueBreakdown } from '../db/index.js';
+import { getReviewQueueBreakdown, getUserAnalytics } from '../db/index.js';
 import { Analytics } from '../models/analyticsModel.js';
 import { connectToDb } from '../db/connection.js';
 import { verifyToken, verifyAdmin } from '../middleware/authMiddleware.js';
@@ -205,4 +205,16 @@ analyticsRouter.get('/daily', verifyToken, async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// GET /api/analytics/users?days=30 — admin-only users & growth: active users,
+// stickiness, churn, signup funnel, weekly cohorts and who has gone quiet.
+analyticsRouter.get('/users', verifyToken, verifyAdmin, async (req, res) => {
+    try {
+        const days = Math.min(90, Math.max(7, Number(req.query.days) || 30));
+        res.json(await getUserAnalytics({ days }));
+    } catch (error) {
+        console.error('[Analytics/users] Failed:', error.message);
+        res.status(500).json({ error: 'Server Error' });
+    }
 });

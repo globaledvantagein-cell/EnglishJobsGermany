@@ -24,6 +24,7 @@ import {
   addLocalAppliedId,
   type PendingItem,
 } from '../utils/appliedJobs';
+import { isFeatureOn } from '../hooks/useFeature';
 
 interface AppliedJobsContextValue {
   isApplied: (jobId: string) => boolean;
@@ -76,7 +77,7 @@ export function AppliedJobsProvider({ children }: { children: ReactNode }) {
       addLocalAppliedId(jobId);
       setAppliedIds(prev => new Set(prev).add(jobId));
 
-      if (isAuthenticated) {
+      if (isAuthenticated && isFeatureOn('applyTracking')) {
         apiPost(`/api/jobs/${jobId}/confirm-applied`, {}).catch(() => { /* silent */ });
       }
     }

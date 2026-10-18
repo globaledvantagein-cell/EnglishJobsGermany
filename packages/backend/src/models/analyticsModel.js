@@ -33,6 +33,7 @@ const analyticsSchema = new mongoose.Schema({
   todayMatch_runs: { type: Number, default: 0 },       // fresh skill-match computes
   applyClicks_total: { type: Number, default: 0 },     // apply-click events
   visitor_conversions: { type: Number, default: 0 },   // anon visitor → logged in
+  accountDeletions: { type: Number, default: 0 },      // GDPR self-deletions (count only, no PII kept)
 
   // ── Premium invite funnel ──
   waitlist_joins: { type: Number, default: 0 },        // "Join the waitlist" clicks (invite code generated)

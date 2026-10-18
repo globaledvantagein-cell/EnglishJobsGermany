@@ -1,7 +1,8 @@
 'use client';
 
 import { Lock } from 'lucide-react';
-import GoogleAuthButton from './GoogleAuthButton';
+import { useState } from 'react';
+import GoogleAuthButton, { type GoogleAuthMode } from './GoogleAuthButton';
 
 interface Props {
   /** Optional teaser data — title/company/location only */
@@ -24,6 +25,10 @@ interface Props {
  * itself stays focused on the value prop.
  */
 export default function SignupGate({ teaser, onAuthSuccess, onBack }: Props) {
+  // Most people hitting the gate are new, so sign-up is the default; returning
+  // users switch to log-in. A log-in with no account flips back to sign-up.
+  const [mode, setMode] = useState<GoogleAuthMode>('signup');
+  const [noAccount, setNoAccount] = useState(false);
   return (
     <div
       style={{
@@ -110,7 +115,25 @@ export default function SignupGate({ teaser, onAuthSuccess, onBack }: Props) {
         </div>
       )}
 
-      <GoogleAuthButton onSuccess={onAuthSuccess} text="continue_with" />
+      {noAccount && (
+        <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: '0 0 10px' }}>
+          No account found for that Google account. Sign up below to create one.
+        </p>
+      )}
+      <GoogleAuthButton
+        key={mode}
+        mode={mode}
+        onSuccess={onAuthSuccess}
+        onNoAccount={() => { setNoAccount(true); setMode('signup'); }}
+      />
+      <button
+        type="button"
+        onClick={() => { setNoAccount(false); setMode(mode === 'signup' ? 'login' : 'signup'); }}
+        style={{ marginTop: 12, background: 'none', border: 'none', fontFamily: 'inherit', fontSize: '0.84rem', color: 'var(--text-secondary)', cursor: 'pointer' }}
+      >
+        {mode === 'signup' ? 'Already have an account? ' : 'New here? '}
+        <span style={{ color: 'var(--primary)', fontWeight: 700 }}>{mode === 'signup' ? 'Log in' : 'Sign up'}</span>
+      </button>
 
       {onBack && (
         <button

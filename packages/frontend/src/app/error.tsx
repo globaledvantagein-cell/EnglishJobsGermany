@@ -15,7 +15,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
         <ErrorState
           kind={kind}
           title={kind === 'unreachable' ? 'Can’t reach the job server' : 'This page hit an error'}
-          hint={error.digest ? `${hint} · ${error.digest}` : hint}
+          hint={[hint, error.digest && `Error ID ${error.digest}`].filter(Boolean).join(' · ') || undefined}
           onRetry={reset}
           action={
             <Link href="/" style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', textDecoration: 'none' }}>

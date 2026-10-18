@@ -45,7 +45,9 @@ export async function runWeeklyReset() {
             $set: {
                 viewCount: 0,
                 jobsViewedSet: [],
-                lastSeenAt: now,
+                // lastSeenAt is deliberately NOT touched: it means "last real
+                // request" and feeds user-activity analytics. Bumping it here
+                // made every visitor look active each Monday.
             },
         },
     );

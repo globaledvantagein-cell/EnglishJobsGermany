@@ -35,6 +35,7 @@ import {
 import { getKeyCount as getGemmaKeyCount, getAllKeysStatus as getGemmaKeyStatus } from '../../gemma/keyManager.js';
 import { isGeminiBudgetExhausted } from '../../gemini/geminiClient.js';
 import { LEGACY_CATEGORY_MAP } from '../../core/categorize.js';
+import { saveHealthRun, getHealthHistory } from '../../db/healthRunQueries.js';
 
 // Values written before the AI categorizer existed. A job still carrying one of
 // these is uncategorized as far as the 28-category filter is concerned.
@@ -148,14 +149,15 @@ const CHECKS = [
         key: 'digest_cron', label: 'Weekly digest cron', group: 'Cron', critical: false,
         run: async () => {
             const db = await connectToDb();
+            // The digest writes `ranAt` (cron/weeklyDigest/helpers.js); this
+            // check used to read `startedAt`, which never exists, so it always
+            // reported "last run date invalid". startedAt kept as a fallback.
             const [last] = await db.collection('digestRuns')
-                .find({}, { projection: { finishedAt: 1, startedAt: 1 } })
-                .sort({ startedAt: -1 }).limit(1).toArray();
+                .find({}, { projection: { ranAt: 1, startedAt: 1 } })
+                .sort({ ranAt: -1, startedAt: -1 }).limit(1).toArray();
             if (!last) return { status: 'warn', detail: 'no digest runs recorded yet' };
 
-            // A run row can exist with startedAt missing or unparseable, which
-            // made getTime() return NaN and rendered as "last run NaNd ago".
-            const startedMs = new Date(last.startedAt).getTime();
+            const startedMs = new Date(last.ranAt ?? last.startedAt).getTime();
             if (!Number.isFinite(startedMs)) {
                 return { status: 'warn', detail: 'last run date invalid' };
             }
@@ -326,7 +328,8 @@ const CHECKS = [
     },
 ];
 
-adminHealthRouter.get('/', async (req, res) => {
+/** Runs every check once. Shared by the route and the background monitor. */
+export async function runHealthChecks() {
     const results = await Promise.all(CHECKS.map(async c => {
         const r = await timed(c.run);
         return {
@@ -338,10 +341,26 @@ adminHealthRouter.get('/', async (req, res) => {
     const criticalFail = results.some(r => r.critical && r.status === 'fail');
     const anyIssue = results.some(r => r.status !== 'ok');
     const overall = criticalFail ? 'down' : anyIssue ? 'degraded' : 'operational';
+    return { overall, checks: results };
+}
+
+/** Background monitor (server.js cron, kill switch `healthMonitor`). */
+export async function recordHealthRun() {
+    const run = await runHealthChecks();
+    await saveHealthRun({ ...run, source: 'monitor' });
+    return run;
+}
+
+adminHealthRouter.get('/', async (req, res) => {
+    const { overall, checks } = await runHealthChecks();
+    // A manual run is history too; a failed write must not break the page.
+    await saveHealthRun({ overall, checks, source: 'manual' }).catch(err => console.warn('[health] history write failed:', err.message));
+    const history = await getHealthHistory().catch(() => null);
 
     res.status(200).json({
         overall,
         timestamp: new Date().toISOString(),
-        checks: results,
+        checks,
+        history,
     });
 });

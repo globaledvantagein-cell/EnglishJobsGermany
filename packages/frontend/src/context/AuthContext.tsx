@@ -18,7 +18,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (token: string, user: User) => void;
-  loginWithGoogle: (credential: string, acceptedTerms: boolean, extraBody?: Record<string, unknown>) => Promise<void>;
+  loginWithGoogle: (credential: string, acceptedTerms: boolean, extraBody?: Record<string, unknown>) => Promise<{ existing?: boolean }>;
   logout: () => void;
   isAuthenticated: boolean;
   isAdmin: boolean;
@@ -88,12 +88,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     acceptedTerms: boolean,
     extraBody: Record<string, unknown> = {},
   ) => {
-    const res = await apiPost<{ token: string; user: User }>('/api/auth/google', {
+    const res = await apiPost<{ token: string; user: User; existing?: boolean }>('/api/auth/google', {
       credential,
       acceptedTerms,
       ...extraBody,
     }, { noAuth: true });
     login(res.token, res.user);
+    return { existing: res.existing };
   }, [login]);
 
   const logout = useCallback(() => {

@@ -2898,3 +2898,31 @@ details[name] > summary { scroll-margin-top: 84px; }
 .brand-words[data-size='lg'] .brand-name { font-size: 1.2rem; }
 .brand-tagline { margin-top: 3px; font-size: 0.56rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-secondary); }
 .brand-badge { padding: 2px 7px; border-radius: 6px; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; background: var(--primary-soft); color: var(--primary); }
+
+/* ═══════════════════════════════════════════════════
+   AUTH PAGES (/login, /signup — page-components/Login.tsx)
+   The shared .page-wash (logo palette) stretched to the full viewport:
+   glows sit in the corners, the card floats on calm ground. Pattern from
+   Wellfound's login (REA capture): low-opacity brand glows + one card.
+   ═══════════════════════════════════════════════════ */
+.auth-page { min-height: calc(100dvh - 61px); display: flex; align-items: stretch; }
+.auth-page.page-wash { background: linear-gradient(160deg, var(--wash-a) 0%, transparent 45%, var(--wash-b) 100%); }
+/* Full-height glows: blue top-left, gold bottom-right, a hint of red top-right. */
+.auth-page.page-wash::before {
+  top: -10%; bottom: -10%; height: auto;
+  background:
+    radial-gradient(640px 480px at 6% 12%, var(--glow-a), transparent 65%),
+    radial-gradient(700px 520px at 94% 92%, var(--glow-b), transparent 65%),
+    radial-gradient(420px 300px at 88% 8%, var(--glow-c), transparent 70%);
+}
+.auth-card {
+  background: color-mix(in srgb, var(--bg-surface) 86%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1); backdrop-filter: blur(14px) saturate(1.1);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 18px; padding: 32px 28px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 18px 48px -12px rgba(15, 23, 42, 0.16);
+}
+/* One accent word in the brand blue (Wellfound's "Welcome back" pattern). */
+.auth-accent { color: var(--primary); }
+[data-theme='dark'] .auth-page.page-wash { background: linear-gradient(160deg, color-mix(in srgb, var(--wash-a) 45%, transparent) 0%, transparent 45%, color-mix(in srgb, var(--wash-b) 35%, transparent) 100%); }
+[data-theme='dark'] .auth-card { box-shadow: 0 18px 48px -12px rgba(0, 0, 0, 0.5); }

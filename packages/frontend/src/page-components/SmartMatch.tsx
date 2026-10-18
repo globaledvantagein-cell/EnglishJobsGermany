@@ -22,6 +22,7 @@ import { usePremiumGate } from '../components/matches/usePremiumGate';
 import { fromSmartMatch } from '../components/matches/matchItem';
 import { matchResumeText, ResumeMatchError, type MatchResponse, type ResumeProfile } from '../utils/resumeMatchApi';
 import { BRAND } from '../theme/brand';
+import { withFeature, FeaturePaused } from '../components/FeatureGate';
 
 type RunState = 'idle' | 'running' | 'error';
 
@@ -39,7 +40,7 @@ function errorMessage(err: unknown): string {
   return 'Network error: could not reach the server.';
 }
 
-export default function SmartMatch({ embedded = false }: { embedded?: boolean }) {
+function SmartMatch({ embedded = false }: { embedded?: boolean }) {
   const { token } = useAuth();
   const gate = usePremiumGate('smart_match');
 
@@ -203,3 +204,5 @@ export default function SmartMatch({ embedded = false }: { embedded?: boolean })
     />
   );
 }
+
+export default withFeature('smartMatch', SmartMatch, <FeaturePaused title="Smart Match" />);

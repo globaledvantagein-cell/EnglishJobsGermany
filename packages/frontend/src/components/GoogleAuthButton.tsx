@@ -5,9 +5,22 @@ import { GoogleLogin } from '@react-oauth/google';
 import { Link } from '@/compat/router';
 import { Alert } from './ui';
 import { useAuth } from '../context/AuthContext';
+import { ApiError } from '../utils/jobApi';
+import { withFeature } from './FeatureGate';
+
+/**
+ * 'login' never creates an account: an unknown Google account gets a
+ * "no account found" message with a link to sign up. 'signup' creates one
+ * (or signs in an existing account). See POST /api/auth/google.
+ */
+export type GoogleAuthMode = 'login' | 'signup';
 
 interface Props {
-  onSuccess?: () => void;
+  mode: GoogleAuthMode;
+  /** `existing` is true when a sign-up click found an account and just signed in. */
+  onSuccess?: (result: { existing?: boolean }) => void;
+  /** Called instead of linking to /signup when the login finds no account (e.g. in-place modals). */
+  onNoAccount?: () => void;
   onError?: (message: string) => void;
   size?: 'medium' | 'large';
   text?: 'signin_with' | 'continue_with' | 'signup_with';
@@ -25,15 +38,18 @@ const MAX_WIDTH = 400;
  * <GoogleLogin/> so the button always fills its slot — fixes the "oddly
  * narrow" Google button issue across both desktop and mobile.
  */
-export default function GoogleAuthButton({
+function GoogleAuthButton({
+  mode,
   onSuccess,
+  onNoAccount,
   onError,
   size = 'large',
-  text = 'continue_with',
+  text,
   extraBody = {},
 }: Props) {
   const { loginWithGoogle } = useAuth();
   const [error, setError] = useState('');
+  const [noAccountEmail, setNoAccountEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -58,13 +74,19 @@ export default function GoogleAuthButton({
 
   const handleSuccess = async (credentialResponse: any) => {
     setError('');
+    setNoAccountEmail(null);
     setLoading(true);
     try {
-      // Clicking the Google button IS the user's agreement to the Terms —
-      // notice below acts as visible legal disclosure (browsewrap-with-notice).
-      await loginWithGoogle(credentialResponse.credential, true, extraBody);
-      onSuccess?.();
+      // On sign-up, clicking the Google button IS the user's agreement to the
+      // Terms; the notice below is the visible disclosure (browsewrap-with-notice).
+      const result = await loginWithGoogle(credentialResponse.credential, mode === 'signup', { ...extraBody, mode });
+      onSuccess?.(result);
     } catch (err: any) {
+      if (err instanceof ApiError && err.body?.code === 'NO_ACCOUNT') {
+        setNoAccountEmail(err.body.email ?? '');
+        if (onNoAccount) onNoAccount();
+        return;
+      }
       const message = err.message || 'Google sign-in failed';
       setError(message);
       onError?.(message);
@@ -76,6 +98,12 @@ export default function GoogleAuthButton({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
       {error && <Alert type="error">{error}</Alert>}
+      {noAccountEmail != null && !onNoAccount && (
+        <Alert type="info">
+          No account found{noAccountEmail ? <> for <b>{noAccountEmail}</b></> : null}. If you deleted your account, it&apos;s gone.{' '}
+          <Link to="/signup" style={{ fontWeight: 700, color: 'var(--primary)' }}>Create a new account</Link>
+        </Alert>
+      )}
 
       <div
         ref={containerRef}
@@ -93,14 +121,14 @@ export default function GoogleAuthButton({
           onError={() => setError('Google sign-in failed')}
           theme="outline"
           size={size}
-          text={text}
+          text={text ?? (mode === 'signup' ? 'signup_with' : 'signin_with')}
           shape="rectangular"
           width={String(buttonWidth)}
           useOneTap={false}
         />
       </div>
 
-      <p
+      {mode === 'signup' && <p
         style={{
           fontSize: '0.75rem',
           color: 'var(--text-muted, var(--subtle-ink))',
@@ -122,7 +150,8 @@ export default function GoogleAuthButton({
         >
           Terms &amp; Privacy Policy
         </Link>
-      </p>
+      </p>}
     </div>
   );
 }
+export default withFeature('googleLogin', GoogleAuthButton);

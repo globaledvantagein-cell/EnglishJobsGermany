@@ -201,7 +201,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             {!isMobileNav && !effIsAuthenticated && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Link to="/login"><Button variant="ghost" size="sm">Log in</Button></Link>
-                <Link to="/signup"><Button size="sm">Get alerts</Button></Link>
+                <Link to="/signup"><Button size="sm">Sign up</Button></Link>
               </div>
             )}
 

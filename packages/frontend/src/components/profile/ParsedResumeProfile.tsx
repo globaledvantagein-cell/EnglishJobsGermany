@@ -9,6 +9,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { FileText, Upload, Briefcase, GraduationCap, FolderOpen, Wrench, Pencil, X, Plus, Check } from 'lucide-react';
 import { Card, Badge, Button, Alert } from '../ui';
 import { apiGet, apiPatch } from '../../utils/jobApi';
+import { isFeatureOn } from '../../hooks/useFeature';
 
 interface ParsedProfile {
   name?: string;
@@ -389,6 +390,7 @@ function useResumeParsing(onParsed: (p: any) => void) {
 
     const token = localStorage.getItem('ejg_token');
     if (!token) { setPhase('error'); setError('Not signed in.'); return; }
+    if (!isFeatureOn('resumeUpload')) { setPhase('error'); setError('Resume upload is temporarily paused. Please try again later.'); return; }
 
     const formData = new FormData();
     formData.append('resume', file);

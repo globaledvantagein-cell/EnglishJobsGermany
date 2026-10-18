@@ -19,8 +19,9 @@ import { ArrowLeft } from 'lucide-react';
 import { EmptyState } from '../components/ui';
 import { fetchRemoteJobDetail } from '../utils/remoteJobApi';
 import type { IJob } from '../types';
+import { withFeature, FeaturePaused } from '../components/FeatureGate';
 
-export default function RemoteJobSharePage({ jobId }: { jobId: string }) {
+function RemoteJobSharePage({ jobId }: { jobId: string }) {
   const [job, setJob] = useState<IJob | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -73,3 +74,5 @@ export default function RemoteJobSharePage({ jobId }: { jobId: string }) {
     </div>
   );
 }
+
+export default withFeature('remoteJobs', RemoteJobSharePage, <FeaturePaused title="Remote jobs" />);

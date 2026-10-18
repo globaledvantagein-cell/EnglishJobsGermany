@@ -17,6 +17,8 @@ import { careerGuideRouter } from './api/careerGuide.routes.js';
 import { adminCareerGuideRouter } from './api/admin/careerGuide.routes.js';
 import { adminCompanyProfilesRouter } from './api/admin/companyProfiles.routes.js';
 import { adminHealthRouter } from './api/admin/health.routes.js';
+import { featuresRouter, adminFeaturesRouter } from './api/features.routes.js';
+import { featureGuard, initFeatureSwitches, runIfEnabled } from './features/index.js';
 import { attachVisitor } from './middleware/visitorMiddleware.js';
 import { FRONTEND_ORIGIN } from './env.js';
 import { initJobsCache, initAiResultCache, initRemoteJobsCache, startRemoteJobsWatcher, isJobsCacheReady } from './cache/index.js';
@@ -57,6 +59,10 @@ const requireCacheReady = (req, res, next) => {
 };
 
 // --- API Routes ---
+// Kill switches: one guard in front of every router (see KILL_SWITCHES.md).
+app.use('/api', featureGuard);
+app.use('/api/features', featuresRouter);
+app.use('/api/admin/features', adminFeaturesRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/jobs', requireCacheReady, jobsApiRouter);
 app.use('/api/remote-jobs', remoteJobsRouter);
@@ -80,6 +86,7 @@ app.get('/', (req, res) => {
 app.listen(PORT, async () => {
     try {
         await connectToDb();
+        await initFeatureSwitches();
 
         // const { initJobsCache } = await import('./cache/index.js');
         // await initJobsCache();
@@ -122,33 +129,33 @@ app.listen(PORT, async () => {
         console.log(`✅ API Server is running on http://localhost:${PORT}`);
         console.log("Setting up scheduled tasks...");
 
-        cron.schedule('0 6 * * *', () => {
+        cron.schedule('0 6 * * *', runIfEnabled('cronScraper', () => {
             console.log('--- Cron Job: Running Scraper ---');
             runScraper();
-        });
+        }));
 
-        cron.schedule('0 2 * * *', () => {
+        cron.schedule('0 2 * * *', runIfEnabled('cronValidator', () => {
             console.log('--- Cron Job: Running Validator ---');
             runValidator();
-        });
+        }));
 
         // Weekly digest — daily at 8:00 AM UTC during testing.
         // Change back to '0 8 * * 1' (Monday only) when ready for production.
-         cron.schedule('0 8 * * 1', () => {
+         cron.schedule('0 8 * * 1', runIfEnabled('cronWeeklyDigest', () => {
             console.log('--- Cron Job: Running Weekly Digest ---');
             runWeeklyDigest().catch(err => console.error('[digest] Failed:', err));
-        });
+        }));
 
         // Weekly usage-counter reset — every Monday at 00:00 UTC.
-        cron.schedule('0 0 * * 1', () => {
+        cron.schedule('0 0 * * 1', runIfEnabled('cronWeeklyReset', () => {
             console.log('--- Cron Job: Running Weekly Reset ---');
             runWeeklyReset().catch(err => console.error('[weekly-reset] Failed:', err));
-        }, { timezone: 'UTC' });
+        }), { timezone: 'UTC' });
 
         // WhatsApp Channel post (2 jobs) — daily at 08:00 UTC, after
         // the 06:00 scrape. No-op unless WHATSAPP_CHANNEL_JID is set (checked
         // inside runWhatsAppDigest).
-      cron.schedule('0 7 * * *', async () => {
+      cron.schedule('0 7 * * *', runIfEnabled('cronWhatsApp', async () => {
             console.log('[Cron] Running WhatsApp morning post...');
             try {
                 const { runWhatsAppDigest } = await import('./whatsapp/digest.js');
@@ -156,9 +163,9 @@ app.listen(PORT, async () => {
             } catch (err) {
                 console.error('[WhatsApp] Morning post failed:', err);
             }
-        }, { timezone: 'UTC' });
+        }), { timezone: 'UTC' });
 
-        cron.schedule('0 15 * * *', async () => {
+        cron.schedule('0 15 * * *', runIfEnabled('cronWhatsApp', async () => {
             console.log('[Cron] Running WhatsApp afternoon post...');
             try {
                 const { runWhatsAppDigest } = await import('./whatsapp/digest.js');
@@ -166,7 +173,17 @@ app.listen(PORT, async () => {
             } catch (err) {
                 console.error('[WhatsApp] Afternoon post failed:', err);
             }
-        }, { timezone: 'UTC' });
+        }), { timezone: 'UTC' });
+
+        // Health monitor: every 10 minutes, feeds the /admin/health uptime bars.
+        cron.schedule('*/10 * * * *', runIfEnabled('healthMonitor', async () => {
+            try {
+                const { recordHealthRun } = await import('./api/admin/health.routes.js');
+                await recordHealthRun();
+            } catch (err) {
+                console.warn('[health] monitor run failed:', err.message);
+            }
+        }));
 
         console.log("✅ Cron tasks are scheduled.");
         console.log('--- Running initial scrape on start... ---');

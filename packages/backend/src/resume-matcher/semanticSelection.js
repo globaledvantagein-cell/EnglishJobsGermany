@@ -14,6 +14,7 @@ import crypto from 'node:crypto';
 import { connectToDb } from '../db/connection.js';
 import { EMBEDDING_ID, EMBEDDING_LIMITS, cosine, embedTexts, isEmbeddingCoolingDown, preloadEmbeddings } from '../embeddings/index.js';
 import { getAllJobs } from '../cache/index.js';
+import { isFeatureEnabled } from '../features/index.js';
 
 export const SEMANTIC_POOL = 150;
 const SEMANTIC_WEIGHT = 0.25;
@@ -128,7 +129,7 @@ export async function applySemanticSelection(profile, ranked) {
 let warmerTimer = null;
 
 async function warmOnce() {
-    if (isEmbeddingCoolingDown()) return;
+    if (isEmbeddingCoolingDown() || !isFeatureEnabled('embeddingWarmer')) return;
     let jobs;
     try { jobs = getAllJobs(); } catch { return; } // cache still loading
     const pending = jobs.filter(job => {

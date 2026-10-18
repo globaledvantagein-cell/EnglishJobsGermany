@@ -2,6 +2,7 @@
 // (backend src/matching/feedbackModel.js). Fire-and-forget: feedback must
 // never block or break the page.
 import { apiDelete, apiPost } from './jobApi';
+import { isFeatureOn } from '../hooks/useFeature';
 
 export type MatchSource = 'today' | 'smart';
 export type MatchAction = 'dismiss' | 'open' | 'view_job' | 'company_site' | 'save' | 'apply';
@@ -26,12 +27,13 @@ export const DISMISS_REASONS: ReadonlyArray<{ value: DismissReason; label: strin
 export interface EventContext { position?: number; listId?: string }
 
 export function sendMatchEvent(jobId: string, source: MatchSource, action: MatchAction, reason?: DismissReason, context: EventContext = {}): void {
+  if (!isFeatureOn('matchFeedback')) return;
   apiPost('/api/jobs/match-feedback', { jobId, source, action, reason, ...context }).catch(() => { /* best effort */ });
 }
 
 /** Log a shown list once (jobs in ranked order) — exposure data for learning to rank. */
 export function sendImpressions(source: MatchSource, listId: string, jobIds: string[]): void {
-  if (jobIds.length === 0) return;
+  if (jobIds.length === 0 || !isFeatureOn('matchFeedback')) return;
   apiPost('/api/jobs/match-feedback/impressions', { source, listId, jobIds: jobIds.slice(0, 50) }).catch(() => { /* best effort */ });
 }
 

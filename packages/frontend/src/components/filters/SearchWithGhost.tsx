@@ -19,6 +19,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { apiGet } from '../../utils/jobApi';
+import { isFeatureOn } from '../../hooks/useFeature';
 
 const DEBOUNCE_MS = 150;
 
@@ -47,7 +48,7 @@ export default function SearchWithGhost({
 
     // Nothing to complete, or the user is mid-phrase — only the final word is
     // completable, and a 1-char query matches almost everything.
-    if (typed.length < 2) {
+    if (typed.length < 2 || !isFeatureOn('searchAutocomplete')) {
       setGhost('');
       return;
     }

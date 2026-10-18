@@ -1,18 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { useNavigate } from '@/compat/router';
+import { Link, useNavigate } from '@/compat/router';
 import { Briefcase, CheckCircle, Mail, Globe } from 'lucide-react';
-import GoogleAuthButton from '../components/GoogleAuthButton';
+import GoogleAuthButton, { type GoogleAuthMode } from '../components/GoogleAuthButton';
 import DigestOptIn from '../components/login/DigestOptIn';
 import { BRAND } from '../theme/brand';
 
 /**
- * Single auth page for everyone. Google sign-in only.
- * Optional weekly-digest opt-in is a slim row below the title; when ticked,
- * a small category picker appears inline (extracted into DigestOptIn).
+ * Auth page, Google only, in two modes (separate pages, like Vercel's
+ * /login and /signup):
+ *   /login  → mode 'login': never creates an account; an unknown Google
+ *             account is told "no account found" with a link to sign up.
+ *   /signup → mode 'signup': creates the account (terms notice + optional
+ *             weekly-digest opt-in live here only).
  */
-export default function Login() {
+export default function Login({ mode = 'login' }: { mode?: GoogleAuthMode }) {
+  const isSignup = mode === 'signup';
   const nav = useNavigate();
   const [wantsDigest, setWantsDigest] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -34,18 +38,17 @@ export default function Login() {
     : {};
 
   return (
-    <div style={{ minHeight: '90vh', display: 'flex', background: 'var(--paper)' }}>
-      {/* Brand panel (desktop) */}
+    // One continuous logo-palette wash across the whole page (the site's shared
+    // .page-wash system, data-wash="home"), instead of a flat split panel.
+    // Pattern from Wellfound's login (REA): soft brand glows in the corners,
+    // calm centre, one floating card.
+    <div className="page-wash auth-page" data-wash="home">
+      {/* Brand pitch (desktop) */}
       <div
         className="hidden md:flex"
-        style={{
-          flex: 1, flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
-          padding: '48px', background: 'var(--paper2)',
-          borderRight: '1.25px solid var(--border)', position: 'relative', overflow: 'hidden',
-        }}
+        style={{ flex: 1, flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '48px' }}
       >
-        <div className="grid-bg" style={{ position: 'absolute', inset: 0, opacity: 0.4 }} />
-        <div style={{ position: 'relative', zIndex: 1, maxWidth: 360, textAlign: 'center' }}>
+        <div style={{ maxWidth: 360, textAlign: 'center' }}>
           <div
             style={{
               width: 56, height: 56,
@@ -59,7 +62,7 @@ export default function Login() {
             <Briefcase size={24} />
           </div>
           <h2 style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--ink)', letterSpacing: '-0.02em', marginBottom: 12 }}>
-            Welcome
+            {isSignup ? <>Welcome <span className="auth-accent">aboard</span></> : <>Welcome <span className="auth-accent">back</span></>}
           </h2>
           <p style={{ color: 'var(--muted-ink)', marginBottom: 36, lineHeight: 1.65, fontSize: '0.95rem' }}>
             {BRAND.description}
@@ -93,15 +96,7 @@ export default function Login() {
             </div>
           </div>
 
-          <div
-            style={{
-              background: 'var(--surface-solid)',
-              border: '1.25px solid var(--border)',
-              borderRadius: 18,
-              padding: '32px 28px',
-              boxShadow: 'var(--shadow-lg)',
-            }}
-          >
+          <div className="auth-card">
             <div style={{ marginBottom: 22, textAlign: 'center' }}>
               <h2
                 style={{
@@ -110,19 +105,27 @@ export default function Login() {
                   marginBottom: 5, lineHeight: 1.2,
                 }}
               >
-                Sign in to {BRAND.appName}
+                {isSignup ? <>Create your <span className="auth-accent">free</span> account</> : `Log in to ${BRAND.appName}`}
               </h2>
               <p style={{ color: 'var(--subtle-ink)', fontSize: '0.875rem', margin: 0 }}>
-                One-click access — new and returning users
+                {isSignup ? 'One click with Google. No password to remember.' : 'Use the Google account you signed up with.'}
               </p>
             </div>
 
             <GoogleAuthButton
+              mode={mode}
               onSuccess={() => nav('/jobs')}
-              text="continue_with"
-              extraBody={extraAuthBody}
+              extraBody={isSignup ? extraAuthBody : {}}
             />
 
+            <p style={{ textAlign: 'center', margin: '18px 0 0', fontSize: '0.875rem', color: 'var(--subtle-ink)' }}>
+              {isSignup ? 'Already have an account? ' : "Don't have an account? "}
+              <Link to={isSignup ? '/login' : '/signup'} style={{ color: 'var(--primary)', fontWeight: 700, textDecoration: 'none' }}>
+                {isSignup ? 'Log in' : 'Sign up'}
+              </Link>
+            </p>
+
+            {isSignup && <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0 16px' }}>
               <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
               <span
@@ -142,6 +145,7 @@ export default function Login() {
               selectedCategories={selectedCategories}
               onToggleCategory={toggleCategory}
             />
+            </>}
 
             <p
               style={{

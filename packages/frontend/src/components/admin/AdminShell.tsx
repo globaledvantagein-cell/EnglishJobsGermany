@@ -10,9 +10,9 @@
  * Live counters (review backlog, trash, unread feedback) are fetched here and
  * shared through useAdminCounts() so pages can refresh them after a mutation.
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { ChevronRight, ExternalLink, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Rows3, Rows4, Sun } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Rows3, Rows4, Sun } from 'lucide-react';
 import { Link } from '@/compat/router';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -36,6 +36,7 @@ export const useAdminCounts = () => useContext(CountsContext);
 const COUNTS_POLL_MS = 60_000;
 const DENSITY_KEY = 'ejg_admin_density';
 const COLLAPSED_KEY = 'ejg_admin_sidebar_collapsed';
+const CLOSED_GROUPS_KEY = 'ejg_admin_nav_closed_groups';
 
 type Density = 'compact' | 'comfortable';
 
@@ -56,6 +57,17 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   // resolves), so reading saved preferences in the initializer is safe.
   const [density, setDensity] = useState<Density>(() => (readPref(DENSITY_KEY) === 'comfortable' ? 'comfortable' : 'compact'));
   const [collapsed, setCollapsed] = useState(() => readPref(COLLAPSED_KEY) === 'true');
+  // Collapsible nav groups (shadcn/Tailor pattern): the user's closed groups
+  // persist; the group holding the current page is always shown open.
+  const [closedGroups, setClosedGroups] = useState<string[]>(() => {
+    try { return JSON.parse(readPref(CLOSED_GROUPS_KEY) || '[]'); } catch { return []; }
+  });
+  const toggleGroup = (label: string) => setClosedGroups(prev => {
+    const next = prev.includes(label) ? prev.filter(g => g !== label) : [...prev, label];
+    writePref(CLOSED_GROUPS_KEY, JSON.stringify(next));
+    return next;
+  });
+  const navRef = useRef<HTMLElement | null>(null);
   const [counts, setCounts] = useState<Counts>({ review: null, pendingDecision: null, trash: null, feedback: null });
 
   const refreshCounts = useCallback(() => {
@@ -79,7 +91,17 @@ export default function AdminShell({ children }: { children: ReactNode }) {
     writePref(DENSITY_KEY, next);
   };
 
+  // Below 900px (phones, or a desktop window narrowed by a browser side
+  // panel) the sidebar is an icon rail; the same button opens it in full as
+  // an overlay instead of toggling the saved desktop preference.
+  const [narrowOpen, setNarrowOpen] = useState(false);
+  useEffect(() => { setNarrowOpen(false); }, [pathname]);
+
   const toggleCollapsed = () => {
+    if (window.matchMedia('(max-width: 900px)').matches) {
+      setNarrowOpen(prev => !prev);
+      return;
+    }
     setCollapsed(prev => {
       writePref(COLLAPSED_KEY, String(!prev));
       return !prev;
@@ -87,6 +109,11 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   };
 
   const current = findNavItem(pathname);
+
+  // Keep the active link visible when the list scrolls (short screens).
+  useEffect(() => {
+    navRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest' });
+  }, [pathname]);
   const countsValue = useMemo(() => ({ counts, refreshCounts }), [counts, refreshCounts]);
 
   // The review badge shows only the blocking backlog (not live yet); the
@@ -99,18 +126,35 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   return (
     <CountsContext.Provider value={countsValue}>
       <AdminUiProvider>
-        <div className="adm adm-shell" data-density={density} data-collapsed={collapsed ? 'true' : 'false'}>
+        <div className="adm adm-shell" data-density={density} data-collapsed={collapsed ? 'true' : 'false'} data-narrow-open={narrowOpen ? 'true' : undefined}>
+          {narrowOpen && <div className="adm-sidebar-scrim" onClick={() => setNarrowOpen(false)} />}
           <aside className="adm-sidebar" aria-label="Admin navigation">
             <Link to={ADMIN_HOME} className="adm-brand" style={{ color: 'inherit', textDecoration: 'none' }}>
-              {/* Same lockup as the public site (components/BrandLogo). */}
+              {/* Same mark as the public site; name + role on two lines (like a
+                  workspace switcher) so it fits the rail at any font size. */}
               <BrandLogo size="sm" href={null} wordmark={false} />
-              <span className="adm-brand-text"><BrandLogo size="sm" href={null} mark={false} tagline={false} badge="Admin" /></span>
+              <span className="adm-brand-text">
+                <BrandLogo size="sm" href={null} mark={false} tagline={false} />
+                <span className="adm-brand-role">Admin console</span>
+              </span>
             </Link>
 
-            <nav className="adm-nav">
-              {ADMIN_NAV.map(group => (
-                <div key={group.label} className="adm-nav-group">
-                  <div className="adm-nav-label">{group.label}</div>
+            <nav className="adm-nav" ref={navRef}>
+              {ADMIN_NAV.map(group => {
+                const hasActive = group.items.some(item => item.href === current?.href);
+                const open = hasActive || !closedGroups.includes(group.label);
+                return (
+                <div key={group.label} className="adm-nav-group" data-open={open ? 'true' : 'false'}>
+                  <button
+                    type="button"
+                    className="adm-nav-label"
+                    aria-expanded={open}
+                    onClick={() => { if (!hasActive) toggleGroup(group.label); }}
+                    title={hasActive ? undefined : open ? `Collapse ${group.label}` : `Expand ${group.label}`}
+                  >
+                    {group.label}
+                    {!hasActive && <ChevronDown size={11} className="adm-nav-chevron" />}
+                  </button>
                   {group.items.map(item => {
                     const Icon = item.icon;
                     const active = current?.href === item.href;
@@ -134,17 +178,18 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                     );
                   })}
                 </div>
-              ))}
+                );
+              })}
             </nav>
 
+            {/* One row instead of two: frees a line for the nav on short screens. */}
             <div className="adm-sidebar-foot">
               <Link to="/" className="adm-nav-link" title="Open public site">
                 <ExternalLink size={15} />
                 <span className="adm-nav-text">Public site</span>
               </Link>
-              <button type="button" className="adm-nav-link" onClick={logout} title="Log out" style={{ border: 'none', background: 'none', cursor: 'pointer', width: '100%' }}>
+              <button type="button" className="adm-nav-link adm-foot-logout" onClick={logout} title={`Log out${user?.name ? ` (${user.name})` : ''}`}>
                 <LogOut size={15} />
-                <span className="adm-nav-text">Log out{user?.name ? ` · ${user.name}` : ''}</span>
               </button>
             </div>
           </aside>
@@ -152,7 +197,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
           <header className="adm-topbar">
             <button
               type="button"
-              className="adm-btn adm-hide-sm"
+              className="adm-btn"
               data-variant="ghost"
               data-icon="true"
               onClick={toggleCollapsed}

@@ -7,6 +7,7 @@ import { Button, FormField, Input, Select, Alert } from '../components/ui';
 import { CONTENT } from '../theme/content';
 import { useAuth } from '../context/AuthContext';
 import { apiGet, apiPost } from '../utils/jobApi';
+import { withFeature, FeaturePaused } from '../components/FeatureGate';
 
 /**
  * Weekly Job Alerts subscription page.
@@ -24,7 +25,7 @@ const TRUST = [
 
 type Status = 'idle' | 'loading' | 'success' | 'error' | 'already_subscribed';
 
-export default function Alerts() {
+function Alerts() {
   const { isAuthenticated, token } = useAuth();
   const [fd, setFd] = useState({
     name: '',
@@ -285,3 +286,4 @@ function AlreadySubscribed() {
     </div>
   );
 }
+export default withFeature('emailSignup', Alerts, <FeaturePaused title="Job alert sign-up" />);

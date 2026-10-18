@@ -15,6 +15,7 @@ import { Bookmark } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useHydrated } from '../hooks/useHydrated';
 import { useSavedJobs } from '../context/SavedJobsContext';
+import { withFeature } from './FeatureGate';
 
 interface Props {
   jobId: string;
@@ -22,7 +23,7 @@ interface Props {
   style?: CSSProperties;
 }
 
-export default function SaveJobButton({ jobId, size = 15, style }: Props) {
+function SaveJobButton({ jobId, size = 15, style }: Props) {
   const hydrated = useHydrated();
   const { isAuthenticated } = useAuth();
   const { isSaved, toggleSave } = useSavedJobs();
@@ -70,3 +71,4 @@ export default function SaveJobButton({ jobId, size = 15, style }: Props) {
     </button>
   );
 }
+export default withFeature('savedJobs', SaveJobButton);

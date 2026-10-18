@@ -1,7 +1,7 @@
 import { connectToDb } from '../connection.js';
 import { SITES_CONFIG } from '../../config.js';
 import { createJobModel } from '../../models/jobModel.js';
-import { categorizeJobFallback, mapLegacyCategory } from '../../core/categorize.js';
+import { ALL_CATEGORIES, categorizeJobFallback, mapLegacyCategory } from '../../core/categorize.js';
 import { resolveWorkplace } from '../../utils/filterNormalizer.js';
 
 export async function loadAllExistingIDs() {
@@ -125,6 +125,12 @@ export async function findSavedJobsByJobIDs(jobIDs, sourceSite, collectionName =
         .toArray();
 }
 
+const WORKPLACE_TYPES = ['Onsite', 'Hybrid', 'Remote'];
+const toSalary = (value) => {
+    const n = Number(String(value ?? '').replace(/[^\d.]/g, ''));
+    return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+};
+
 export async function addCuratedJob(jobData) {
     if (!jobData.JobTitle || !jobData.ApplicationURL || !jobData.Company) {
         throw new Error('Job Title, URL, and Company are required.');
@@ -133,7 +139,8 @@ export async function addCuratedJob(jobData) {
     const jobsCollection = db.collection('jobs');
     const existingJob = await jobsCollection.findOne({ ApplicationURL: jobData.ApplicationURL });
     if (existingJob) {
-        throw new Error('This Application URL already exists in the database.');
+        // "duplicate URL" is what the route matches to answer 409.
+        throw new Error('duplicate URL: this application URL already exists.');
     }
     const jobID = `curated-${new Date().getTime()}`;
 
@@ -149,9 +156,19 @@ export async function addCuratedJob(jobData) {
         PostedDate: jobData.PostedDate || new Date().toISOString(),
         ContractType: jobData.ContractType,
         ExperienceLevel: jobData.ExperienceLevel,
+        WorkplaceType: WORKPLACE_TYPES.includes(jobData.WorkplaceType) ? jobData.WorkplaceType : undefined,
+        IsRemote: jobData.WorkplaceType === 'Remote',
+        SalaryMin: toSalary(jobData.SalaryMin),
+        SalaryMax: toSalary(jobData.SalaryMax),
+        SalaryCurrency: toSalary(jobData.SalaryMin) || toSalary(jobData.SalaryMax) ? (jobData.SalaryCurrency || 'EUR') : null,
+        SalaryInterval: toSalary(jobData.SalaryMin) || toSalary(jobData.SalaryMax) ? 'year' : null,
         isManual: true,
         Status: 'active'
     }, "Curated");
+
+    // Category isn't in the job schema (the categorizer sets it after save).
+    // An admin's explicit pick wins; otherwise the categorizer sweep fills it.
+    if (ALL_CATEGORIES.includes(jobData.Category)) jobToSave.Category = jobData.Category;
 
     await saveJobs([jobToSave]);
     return jobToSave;

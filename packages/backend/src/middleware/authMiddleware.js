@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { getUserProfile } from '../db/users/auth.js';
 import { isPremium } from '../db/users/subscription.js';
+import { recordUserActivity } from '../db/userActivityQueries.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -12,6 +13,7 @@ export const verifyToken = (req, res, next) => {
     }
     try {
         req.user = jwt.verify(token, JWT_SECRET);
+        recordUserActivity(req.user.id); // once per user per day, fire-and-forget
         next();
     } catch (err) {
         res.status(400).json({ error: "Invalid Token" });
@@ -35,6 +37,7 @@ export const softVerifyToken = (req, res, next) => {
     if (!token) return next();
     try {
         req.user = jwt.verify(token, JWT_SECRET);
+        recordUserActivity(req.user.id);
     } catch {
         // Invalid token → treat as anonymous, don't reject
     }
