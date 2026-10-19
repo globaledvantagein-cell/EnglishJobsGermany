@@ -18,6 +18,7 @@ import { adminCareerGuideRouter } from './api/admin/careerGuide.routes.js';
 import { adminCompanyProfilesRouter } from './api/admin/companyProfiles.routes.js';
 import { adminHealthRouter } from './api/admin/health.routes.js';
 import { adminValidatorRouter } from './api/admin/validator.routes.js';
+import { adminMaintenanceRouter } from './api/admin/maintenance.routes.js';
 import { featuresRouter, adminFeaturesRouter } from './api/features.routes.js';
 import { featureGuard, initFeatureSwitches, runIfEnabled } from './features/index.js';
 import { attachVisitor } from './middleware/visitorMiddleware.js';
@@ -74,6 +75,7 @@ app.use('/api/admin/career-guide', adminCareerGuideRouter);
 app.use('/api/admin/company-profiles', adminCompanyProfilesRouter);
 app.use('/api/admin/health', adminHealthRouter);
 app.use('/api/admin/validator', adminValidatorRouter);
+app.use('/api/admin/maintenance', adminMaintenanceRouter);
 
 // NOTE: All public HTML pages — the /city/*, /category/*, /sitemap.xml SEO
 // landing pages and the /career-guide/* pages — are now served by the Next.js

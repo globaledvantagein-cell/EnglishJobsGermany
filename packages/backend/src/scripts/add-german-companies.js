@@ -41,6 +41,7 @@ const TARGETS = {
     smartrecruiters: { file: 'smartRecruitersConfig.js', array: 'companyIdentifiers',  kind: 'string' },
     teamtailor:      { file: 'teamtailorConfig.js',      array: 'companyBoardNames',   kind: 'string' },
     personio:        { file: 'personioConfig.js',        array: 'companyTargets',      kind: 'personio' },
+    softgarden:      { file: 'softgardenConfig.js',      array: 'companySubdomains',   kind: 'string' },
 };
 
 /** Locate `arrayName`'s literal and return its [start, end] bracket offsets. */

@@ -73,6 +73,13 @@ export function computeContentHash(fingerprints) {
 export async function saveScrapeStatesBulk(ats, states) {
     if (!states || states.length === 0) return 0;
 
+    // Inside a scrapeSite() run the write waits until the site has finished;
+    // see deferScrapeStates() below.
+    if (deferred) {
+        deferred.push([ats, states]);
+        return 0;
+    }
+
     const db = await connectToDb();
     const now = new Date();
     const operations = states.map(({ slug, etag, contentHash, jobCount, changed }) => ({
@@ -95,4 +102,75 @@ export async function saveScrapeStatesBulk(ats, states) {
     const result = await db.collection(STATE_COLLECTION).bulkWrite(operations, { ordered: false });
     console.log(`[ScrapeState] ${ats}: saved ${states.length} states (${result.upsertedCount || 0} new, ${result.modifiedCount || 0} updated)`);
     return (result.upsertedCount || 0) + (result.modifiedCount || 0);
+}
+
+// ─── Deferred commit ───────────────────────────────────────────────────────
+//
+// Configs hash their boards in initialize(), before a single job is processed.
+// Writing those hashes immediately meant a run cut short (Gemini budget spent,
+// a crash) marked every fetched board as "seen": the next run found them
+// unchanged and skipped them, so their unprocessed jobs never arrived until
+// the company happened to edit its board. scrapeSite() now defers the writes
+// and commits them only when the site was drained completely.
+
+let deferred = null;
+
+/** Start buffering saveScrapeStatesBulk() calls. */
+export function deferScrapeStates() {
+    deferred = [];
+}
+
+/** Write everything buffered since deferScrapeStates(). */
+export async function commitScrapeStates() {
+    const pending = deferred || [];
+    deferred = null;
+    for (const [ats, states] of pending) await saveScrapeStatesBulk(ats, states);
+}
+
+/** Drop the buffer, so the next run re-checks these boards. */
+export function discardScrapeStates() {
+    const dropped = (deferred || []).reduce((n, [, states]) => n + states.length, 0);
+    deferred = null;
+    return dropped;
+}
+
+// ─── Seen postings (aggregated feeds) ──────────────────────────────────────
+//
+// Aggregated sources such as the Bundesagentur feed list thousands of
+// postings whose description costs one extra request each. A posting the AI
+// rejected is never saved, so without a record of it every run would fetch its
+// description again just to hit the fingerprint cache. scrapeSeen remembers
+// which postings were already fetched; a TTL lets them expire once they are
+// old enough to have dropped off the feed anyway.
+
+const SEEN_COLLECTION = 'scrapeSeen';
+const SEEN_TTL_DAYS = 60;
+let seenIndexReady = false;
+
+async function seenCollection() {
+    const db = await connectToDb();
+    const collection = db.collection(SEEN_COLLECTION);
+    if (!seenIndexReady) {
+        seenIndexReady = true;
+        await collection.createIndex({ seenAt: 1 }, { expireAfterSeconds: SEEN_TTL_DAYS * 86_400 }).catch(() => {});
+        await collection.createIndex({ source: 1 }).catch(() => {});
+    }
+    return collection;
+}
+
+/** Every posting key already fetched for `source`. */
+export async function loadSeenPostings(source) {
+    const collection = await seenCollection();
+    const docs = await collection.find({ source }, { projection: { key: 1 } }).toArray();
+    return new Set(docs.map(d => d.key));
+}
+
+/** Records one fetched posting. Idempotent. */
+export async function markPostingSeen(source, key) {
+    const collection = await seenCollection();
+    await collection.updateOne(
+        { _id: `${source}|${key}` },
+        { $set: { source, key, seenAt: new Date() } },
+        { upsert: true },
+    );
 }

@@ -52,10 +52,11 @@ RULES:
 - Skill categories: Language (JS, Python, Java), Framework (React, Django, Spring), Database (PostgreSQL, MongoDB), Cloud (AWS, GCP, Azure), DevOps (Docker, Kubernetes, CI/CD), Tool (Git, VS Code), Domain (ML, NLP, FinTech), Other.
 - tools_and_platforms: project management and collaboration tools (Jira, Confluence, Slack, Figma, Salesforce). NOT programming languages or frameworks.
 - min/max_experience_years: "3-5 years" → min 3, max 5. "5+ years" → min 5, max null. Not mentioned → both null.
+- experience_level: decide from the TITLE first — Junior/Intern/Werkstudent/Trainee/Graduate/Praktikum → Entry; Senior/Sr → Senior; Lead/Principal/Staff engineer/Teamleiter → Lead; Director/VP/Head of/C-level/Geschäftsführer → Executive. Only if the title has no such word, use min_experience_years: 0-1 → Entry, 2-4 → Mid, 5+ → Senior. Never answer Entry for a manager role. No evidence → null (do NOT guess).
 - german_level_detail: look for "Deutsch", "German", CEFR levels (A1-C2), "Deutschkenntnisse", "fließend Deutsch". Distinguish "required/mandatory/erforderlich" vs "preferred/nice to have/von Vorteil" vs not mentioned.
-- visa_sponsorship: look for "visa sponsorship", "work authorization", "EU work permit", "Aufenthaltserlaubnis". If mentions "EU citizens only" → not_available.
+- visa_sponsorship: "available" when the ad offers it in any form — "visa sponsorship", "visa support/assistance", "we sponsor visas", "visa and relocation support", including "where applicable"/"if needed". "not_available" when it says sponsorship is not available, "EU citizens only", or candidates must already have the right to work. Otherwise not_mentioned.
 - remote_policy_detail: look for "remote", "hybrid", "on-site", "Homeoffice", "work from home". "2-3 days office" = hybrid.
-- relocation_support: look for "relocation package", "relocation assistance", "moving support".
+- relocation_support: "available" for ANY offer of help moving — "relocation package/support/assistance/budget/bonus", "visa and relocation support", "Umzugsunterstützung" — even with conditions ("if required", "up to €2,500"). "not_available" only when the ad says it is not offered. A requirement to relocate ("must relocate to Munich") is NOT support.
 - Extract salary/compensation if explicitly mentioned in the JD. Look for patterns like €60,000-€80,000, 70k EUR, competitive salary of €65,000. Return null if no salary is mentioned — do NOT guess.
 - salary_min/salary_max: return the FULL number, not shorthand. "70k" → 70000, NOT 70. "€60,000-€80,000" → min 60000, max 80000. A single figure ("salary of €65,000") → min 65000, max 65000. "from €70k" → min 70000, max null.
 - salary_currency: infer from the symbol — € → EUR, $ → USD, £ → GBP, CHF → CHF. Null if no salary.

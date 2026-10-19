@@ -25,8 +25,11 @@ function normalizeExperienceLevel(value) {
 // --------------------------------------------------------------------------------
 
 const API_BASE = 'https://jobs.workable.com/api/v1/jobs';
-const PAGE_SIZE = 100;
-const MAX_PAGES = 8; // Safety cap: 100 � 8 = 800 jobs max per scrape run
+// The API rejects limit > 20 with {"limit":"Must be less than or equal to 20"}
+// (verified 2026-10-19). At 100 every call failed and this source produced 0
+// jobs; Germany alone had 3,002 postings at the time.
+const PAGE_SIZE = 20;
+const MAX_PAGES = 200; // Safety cap: 20 × 200 = 4,000 jobs per scrape run
 
 // --- Config export -------------------------------------------------------------
 
@@ -65,7 +68,13 @@ export const workableConfig = {
         }
 
         const data = await res.json();
-        return { jobs: data.jobs || [], nextPageToken: data.nextPageToken || null };
+        if (!Array.isArray(data.jobs)) {
+            // A validation error still answers 200 — surface it instead of
+            // silently reading it as an empty feed.
+            console.log(`[Workable] Unexpected response: ${JSON.stringify(data).slice(0, 200)}`);
+            return null;
+        }
+        return { jobs: data.jobs, nextPageToken: data.nextPageToken || null };
     },
 
     // -- Pre-fetch phase: paginate the Germany search API ------------------------

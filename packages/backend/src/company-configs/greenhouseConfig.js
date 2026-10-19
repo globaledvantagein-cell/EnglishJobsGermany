@@ -583,6 +583,27 @@ export const greenhouseConfig = {
         // --- DISCOVERY 2026-09-15 (web search + API verified: >=1 job in Germany) ---
         'bioptimus-careers',  // Added via discovery — 4 DE / 9 total
         'globaldimensionsllc',  // Added via discovery — 1 DE / 48 total
+        // --- GERMAN EXPANSION 2026-10-19 ---
+        // Verified: board reachable AND >=1 job located in Germany.
+        'agilerobotsse',  // 67 DE / 70 total
+        'commvault',  // 6 DE / 51 total
+        'bwessmanagementgmbh',  // 4 DE / 6 total
+        'coreweaveu',  // 3 DE / 80 total
+        'dragos',  // 3 DE / 50 total
+        'alnylampharmaceuticals',  // 2 DE / 114 total
+        'deliveroo',  // 1 DE / 228 total
+        '84674th44metrea9999',  // 1 DE / 99 total
+        'auto1group',  // 1 DE / 5 total
+        'boomilp',  // 1 DE / 26 total
+        'bridgebio',  // 1 DE / 73 total
+        'castrol',  // 1 DE / 97 total
+        'conga',  // 1 DE / 45 total
+        'cribl',  // 1 DE / 71 total
+        'dotmatics',  // 1 DE / 36 total
+        'endorlabs',  // 1 DE / 33 total
+        // --- GERMAN EXPANSION 2026-10-19 ---
+        // Verified: board reachable AND >=1 job located in Germany.
+        'kelsoindustries',  // 2 DE / 199 total
 ],
 
     // Internal state

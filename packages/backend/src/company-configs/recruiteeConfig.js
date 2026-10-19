@@ -345,6 +345,19 @@ const companySubdomains = [
     'meinmakler24',  // Added via discovery — 3 DE / 3 total
     'archimed',  // Added via discovery — 2 DE / 2 total
     'becongmbh',  // Added via discovery — 1 DE / 1 total
+    // --- GERMAN EXPANSION 2026-10-19 ---
+    // Verified: board reachable AND >=1 job located in Germany.
+    'odysseyhotelgroup',  // 15 DE / 56 total
+    'onemobility',  // 9 DE / 41 total
+    'sgbsmitgroup',  // 6 DE / 7 total
+    'enomyc',  // 5 DE / 16 total
+    'nomios',  // 5 DE / 39 total
+    'iwell',  // 4 DE / 13 total
+    'pramac',  // 3 DE / 3 total
+    'mainwebsolutions',  // 2 DE / 4 total
+    'ennovationhub',  // 1 DE / 9 total
+    'netknights',  // 1 DE / 1 total
+    'outsourcing4work',  // 1 DE / 7 total
 ];
 
 // --- Config export -------------------------------------------------------------

@@ -308,6 +308,33 @@ const CHECKS = [
         },
     },
     {
+        // Gemma enrichment (requirements → workplace/visa/relocation/salary
+        // filters, plus the categorizer) fails silently: a rejected API key
+        // just leaves jobs un-enriched. From 2026-10-13 every Gemma key was
+        // invalid and 0 of ~770 new jobs were enriched while "Other / General
+        // Business" rose from 3% to 44% — unnoticed for a week. This measures
+        // the outcome, so any cause (dead keys, quota, a bug) turns it red.
+        key: 'ai_enrichment', label: 'AI enrichment (filters + categories)', group: 'Data', critical: false,
+        run: async () => {
+            const db = await connectToDb();
+            // Jobs from the last 3 days, excluding the newest hour (enrichment
+            // runs fire-and-forget right after the save).
+            const window = { $gte: new Date(Date.now() - 3 * 864e5), $lt: new Date(Date.now() - 3.6e6) };
+            const [total, enriched, uncategorized] = await Promise.all([
+                db.collection('jobs').countDocuments({ Status: 'active', createdAt: window }),
+                db.collection('jobs').countDocuments({ Status: 'active', createdAt: window, parsedRequirements: { $exists: true } }),
+                db.collection('jobs').countDocuments({ Status: 'active', createdAt: window, Category: 'Other / General Business' }),
+            ]);
+            if (total < 10) return { status: 'ok', detail: `only ${total} new jobs in the last 3 days — too few to judge` };
+            const enrichedPct = Math.round((enriched / total) * 100);
+            const otherPct = Math.round((uncategorized / total) * 100);
+            const detail = `last 3 days: ${enriched}/${total} enriched (${enrichedPct}%), ${otherPct}% in "Other / General Business"`;
+            if (enriched === 0) return { status: 'fail', detail: `no job enriched — check GEMMA_API_KEYS · ${detail}` };
+            if (enrichedPct < 40 || otherPct > 20) return { status: 'warn', detail };
+            return { status: 'ok', detail };
+        },
+    },
+    {
         // Dead apply links are the most visible data bug a user hits, so the
         // validator's own freshness and results are a check of their own.
         key: 'link_validator', label: 'Dead-link validator', group: 'Data', critical: false,

@@ -103,6 +103,12 @@ export const FEATURE_REGISTRY = [
         routes: [['POST', /^\/api\/jobs\/(admin\/reanalyze|[^/]+\/analyze$)/]],
     },
 
+    {
+        key: 'adminMaintenance', ui: 'Data maintenance buttons on /admin/health are hidden', group: 'Admin tools', label: 'Data maintenance buttons',
+        description: 'Click-only repairs: "Fill missing AI data" (Gemma) and "Recompute filters" (no AI). Never scheduled.',
+        routes: [['*', /^\/api\/admin\/maintenance/]],
+    },
+
     // ── Background jobs (crons) ──────────────────────────────────────────
     { key: 'cronScraper', group: 'Background jobs', label: 'Daily scraper (06:00)', description: 'Scrapes ATS boards and runs AI analysis.', routes: [] },
     {
@@ -110,6 +116,24 @@ export const FEATURE_REGISTRY = [
         description: 'Re-checks every live job against its ATS and expires dead links. Also stops the admin "Check links now" button.',
         ui: 'Check links now button on /admin/health is hidden',
         routes: [['*', /^\/api\/admin\/validator/]],
+    },
+    {
+        key: 'sourceArbeitsagentur', group: 'Background jobs', label: 'Source: Bundesagentur für Arbeit',
+        description: 'Daily scraper queries the Federal Employment Agency job search (English role titles) and runs every posting through the AI.',
+        ui: 'none (no new Arbeitsagentur jobs; existing ones stay live)',
+        routes: [],
+    },
+    {
+        key: 'sourceJoin', group: 'Background jobs', label: 'Source: JOIN',
+        description: 'Daily scraper reads up to 3,000 JOIN company boards (from join.com\'s public companies sitemap) and their German jobs.',
+        ui: 'none (no new JOIN jobs; existing ones stay live)',
+        routes: [],
+    },
+    {
+        key: 'sourceSoftgarden', group: 'Background jobs', label: 'Source: softgarden',
+        description: 'Daily scraper reads softgarden career boards (German ATS, HTML + JobPosting JSON-LD).',
+        ui: 'none (no new softgarden jobs; existing ones stay live)',
+        routes: [],
     },
     { key: 'cronWeeklyDigest', group: 'Background jobs', label: 'Weekly email digest', description: 'Monday job-alert emails.', routes: [] },
     { key: 'cronWeeklyReset', group: 'Background jobs', label: 'Weekly usage reset', description: 'Monday 00:00 reset of usage counters.', routes: [] },

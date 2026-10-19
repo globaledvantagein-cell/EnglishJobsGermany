@@ -470,6 +470,54 @@ export const smartRecruitersConfig = {
         'advancedcomputersystemsacs-dgmbh',  // Added via discovery — 1 DE / 1 total
         'astorfilmtheaterbraunschweig',  // Added via discovery — 1 DE / 1 total
         'betriebsarztserviceholdinggmbh',  // Added via discovery — 1 DE / 1 total
+        // --- GERMAN EXPANSION 2026-10-19 ---
+        // Verified: board reachable AND >=1 job located in Germany.
+        'artoftransfer',  // 65 DE / 100 total
+        'dohlergmbh',  // 62 DE / 100 total
+        'sapitbusinesssysteme',  // 28 DE / 100 total
+        'ipsways',  // 9 DE / 10 total
+        'hierbeidircom',  // 6 DE / 6 total
+        'neax',  // 6 DE / 6 total
+        'ryanairgroupholdings',  // 6 DE / 100 total
+        'wwag',  // 5 DE / 9 total
+        'lastmilemanagementgmbh',  // 4 DE / 5 total
+        'louvrehotelsgroup',  // 4 DE / 100 total
+        'moyostuttgartgmbh',  // 4 DE / 9 total
+        'advancedmedicalsolutions1',  // 3 DE / 19 total
+        'consultygmbh',  // 3 DE / 5 total
+        'deliveryexpertsgmbh',  // 3 DE / 3 total
+        'hrminstitutegmbhcokg',  // 3 DE / 3 total
+        'schuhelkegmbh',  // 3 DE / 4 total
+        'flyactsgmbh',  // 2 DE / 2 total
+        'hirewise',  // 2 DE / 3 total
+        'iotagroup',  // 2 DE / 100 total
+        'lgrecruitment',  // 2 DE / 3 total
+        'mndeliveryservicegmbh',  // 2 DE / 2 total
+        'mr80gmbh',  // 2 DE / 5 total
+        'outpostvfx',  // 2 DE / 31 total
+        'sd-transportug',  // 2 DE / 3 total
+        'buyinglabs',  // 2 DE / 2 total
+        'amirsyrgmbh',  // 1 DE / 1 total
+        'amalitech',  // 1 DE / 12 total
+        'antibodies-onlinegmbh',  // 1 DE / 1 total
+        'azallogisticsgmbh',  // 1 DE / 1 total
+        'brendelpersonalmanagement',  // 1 DE / 1 total
+        'brauereizurmalzmhleschwartzgmbhcokg',  // 1 DE / 1 total
+        'diebrilledsergmbh',  // 1 DE / 1 total
+        'fastdeliveryservicegmbh',  // 1 DE / 1 total
+        'fantasticexpressgmbh',  // 1 DE / 1 total
+        'futureorbisgmbh',  // 1 DE / 1 total
+        'heatlogisticsgmbh',  // 1 DE / 1 total
+        'ifbinternationalfreighbridgedeutschlandgmbh',  // 1 DE / 1 total
+        'microstrategy1',  // 1 DE / 42 total
+        'newamsterdamtechnologyandbusinessventures',  // 1 DE / 10 total
+        'ontracklogisticsgmbh',  // 1 DE / 1 total
+        'perspektiv',  // 1 DE / 1 total
+        'raddeliverygmbh',  // 1 DE / 4 total
+        'rheindatagmbh',  // 1 DE / 1 total
+        'wakandaexpressgmbh',  // 1 DE / 1 total
+        'weserexpressgmbh',  // 1 DE / 1 total
+        'outsourcing4work',  // 1 DE / 1 total
 ],
 
     // Internal state

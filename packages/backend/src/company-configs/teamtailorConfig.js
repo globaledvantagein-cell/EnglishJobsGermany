@@ -364,6 +364,14 @@ export const teamtailorConfig = {
         'ancotrans-1606164612',  // Added via discovery — 1 DE / 7 total
         'auctionet',  // Added via discovery — 1 DE / 6 total
         'mkspampgroup',  // Added via discovery — 1 DE / 23 total
+        // --- GERMAN EXPANSION 2026-10-19 ---
+        // Verified: board reachable AND >=1 job located in Germany.
+        'griepenstrohpersonalvermittlung',  // 148 DE / 148 total
+        'glamox',  // 9 DE / 26 total
+        // --- GERMAN EXPANSION 2026-10-19 ---
+        // Verified: board reachable AND >=1 job located in Germany.
+        'talentlify',  // 98 DE / 98 total
+        'infotreeglobalsolutions',  // 17 DE / 113 total
 ],
 
     // Internal state

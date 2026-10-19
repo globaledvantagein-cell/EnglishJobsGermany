@@ -2,6 +2,7 @@
 
 // Re-export categorizeJob + label maps so callers can import from one place.
 export { categorizeJob, CATEGORY_LABELS, CATEGORY_ORDER, ALL_CATEGORIES } from './categorize.js';
+import { seniorityFromTitle } from '../utils/filterNormalizer.js';
 
 export const TECHNICAL_KEYWORDS = [
     'engineering', 'software', 'data', 'ai', 'machine learning', 'devops',
@@ -25,19 +26,16 @@ export function deriveDomain(department, jobTitle) {
     return TECHNICAL_KEYWORDS.some(kw => combined.includes(kw)) ? 'Technical' : 'Non-Technical';
 }
 
+// Title seniority has one definition: seniorityFromTitle() in the filter
+// normalizer, so the stored ExperienceLevel and the filter can never disagree.
+const LEVEL_LABEL = { entry: 'Entry', senior: 'Senior', lead: 'Lead', executive: 'Executive' };
+
 export function deriveExperienceLevelFromTitle(title) {
-    const lower = String(title || '').toLowerCase();
-    if (/\b(staff|staff\+|distinguished)\b/i.test(lower)) return 'Staff';
-    if (/\b(lead|principal|tech lead)\b/i.test(lower)) return 'Lead';
-    if (/\b(senior|sr\.?|senior level)\b/i.test(lower)) return 'Senior';
-    if (/\b(junior|jr\.?|entry|associate|graduate|intern|entry level|entry-level)\b/i.test(lower)) return 'Entry';
-    if (/\b(mid|mid-level|intermediate|regular)\b/i.test(lower)) return 'Mid';
-    return 'Mid';
+    return LEVEL_LABEL[seniorityFromTitle(title)] || 'Mid';
 }
 
 export function deriveIsEntryLevelFromTitle(title) {
-    const lower = String(title || '').toLowerCase();
-    return /\b(junior|jr\.?|entry|associate|graduate|intern|entry level|entry-level)\b/i.test(lower);
+    return seniorityFromTitle(title) === 'entry';
 }
 
 export function inferAtsPlatform(siteConfig) {

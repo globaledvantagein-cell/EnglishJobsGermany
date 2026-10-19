@@ -23,7 +23,8 @@ export type FeatureKey =
   | 'googleLogin' | 'emailSignup' | 'promoCodes'
   | 'savedJobs' | 'applyTracking' | 'remoteJobs' | 'searchAutocomplete'
   | 'feedbackWidget'
-  | 'cronValidator';
+  | 'cronValidator'
+  | 'adminMaintenance';
 
 const POLL_MS = 60_000;
 

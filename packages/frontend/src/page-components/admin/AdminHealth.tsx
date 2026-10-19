@@ -20,6 +20,7 @@ import { RefreshCw } from 'lucide-react';
 import { apiGet } from '../../utils/jobApi';
 import { Drawer } from '../../components/admin/Drawer';
 import LinkValidatorPanel from '../../components/admin/LinkValidatorPanel';
+import MaintenancePanel from '../../components/admin/MaintenancePanel';
 import { SparkBars } from '../../components/admin/charts';
 import {
   Btn, DefinitionGrid, Dot, Empty, Kpis, Page, Pill, SearchInput, Seg, SkeletonRows, errorText, type Tone,
@@ -159,6 +160,7 @@ export default function AdminHealth() {
           ]} />
 
           <LinkValidatorPanel onFinished={load} />
+          <MaintenancePanel />
 
           {/* Fills the rest of the screen; only the table scrolls (sticky header). */}
           <div className="adm-panel adm-health-panel">

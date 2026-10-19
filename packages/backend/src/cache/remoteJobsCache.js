@@ -1,3 +1,4 @@
+import { companyKey, createSpellingTracker } from './companyKey.js';
 import {connectToRemoteDb} from '../db/connection.js';
 import {
     initRemoteSearchIndex, addToRemoteSearchIndex, removeFromRemoteSearchIndex,
@@ -30,6 +31,8 @@ let employmentIndex = new Map();   // "fulltime" → Set{0, 1, 2, ...}
 let salaryTierIndex = new Map();   // "ats"/"jd" → Set{...}
 let categoryIndex = new Map();     // "software" → Set{0, 1, ...}
 let companyIndex = new Map();      // "GitLab"   → Set{...}
+// Keyed by companyKey(); spellings feed the dropdown label (see companyKey.js).
+const companySpellings = createSpellingTracker();
 let countryIndex = new Map();      // "US"       → Set{...}
 
 // For salary range queries: { min, max, idx }, kept sorted by min ascending.
@@ -77,7 +80,8 @@ function indexRemoteJob(idx, job) {
     if (job.filterSalaryTier) addToIndex(salaryTierIndex, job.filterSalaryTier, idx);
 
     addToIndex(categoryIndex, job.Category || '_null', idx);
-    addToIndex(companyIndex, job.Company || '_null', idx);
+    addToIndex(companyIndex, companyKey(job.Company), idx);
+    if (job.Company) companySpellings.add(companyKey(job.Company), job.Company);
     addToIndex(countryIndex, normalizeCountry(job.Country), idx);
 
     if (hasSalaryRange(job)) {
@@ -101,7 +105,8 @@ function removeRemoteJobFromIndexes(idx, job) {
     if (job.filterSalaryTier) removeFromIndex(salaryTierIndex, job.filterSalaryTier, idx);
 
     removeFromIndex(categoryIndex, job.Category || '_null', idx);
-    removeFromIndex(companyIndex, job.Company || '_null', idx);
+    removeFromIndex(companyIndex, companyKey(job.Company), idx);
+    if (job.Company) companySpellings.remove(companyKey(job.Company), job.Company);
     removeFromIndex(countryIndex, normalizeCountry(job.Country), idx);
 
     if (hasSalaryRange(job)) {
@@ -121,6 +126,7 @@ function clearIndexes() {
     salaryTierIndex = new Map();
     categoryIndex = new Map();
     companyIndex = new Map();
+    companySpellings.clear();
     countryIndex = new Map();
     salaryRangeArray = [];
 }
@@ -133,7 +139,7 @@ function clearIndexes() {
 // config.js here would pull the whole scraper config graph into the cache layer.
 const MAIN_PIPELINE_SITES = new Set([
     'Greenhouse Jobs', 'Ashby Jobs', 'Lever Jobs', 'Workday Jobs', 'Workable Jobs',
-    'Recruitee Jobs', 'Personio Jobs', 'SmartRecruiters Jobs', 'Teamtailor',
+    'Recruitee Jobs', 'Personio Jobs', 'SmartRecruiters Jobs', 'Teamtailor', 'Arbeitsagentur Jobs', 'Softgarden Jobs', 'JOIN Jobs',
 ]);
 
 /** True when the row was written by the German scraper, not the remote one. */
@@ -381,6 +387,8 @@ export function getRemoteEmploymentIndex() { return employmentIndex; }
 export function getRemoteSalaryTierIndex() { return salaryTierIndex; }
 export function getRemoteCategoryIndex() { return categoryIndex; }
 export function getRemoteCompanyIndex() { return companyIndex; }
+/** Display spelling for a companyKey() — the one with the most jobs. */
+export function getRemoteCompanyDisplayName(key) { return companySpellings.displayName(key); }
 export function getRemoteCountryIndex() { return countryIndex; }
 export function getRemoteSalaryRangeArray() { return salaryRangeArray; }
 

@@ -641,3 +641,8 @@ a.adm-kpi:hover { background: var(--adm-sunken); }
 @media (prefers-reduced-motion: reduce) { .adm-linkcheck-bar > span { transition: none; } }
 /* Phone: the two buttons wrap under the title instead of squeezing it. */
 @media (max-width: 900px) { .adm-panel-head { flex-wrap: wrap; row-gap: 4px; height: auto; min-height: 34px; padding-block: 5px; } }
+
+/* ── Data maintenance rows (MaintenancePanel) ── */
+.adm-maint-row { display: flex; align-items: center; gap: 10px; }
+.adm-maint-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.adm-maint-text .adm-linkcheck-bar { margin-top: 4px; }

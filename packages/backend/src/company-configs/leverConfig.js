@@ -5,6 +5,35 @@ import { normalizeArray } from '../core/jobExtractor.js';
 
 
 const LEVER_BASE_URL = 'https://api.lever.co/v0/postings';
+// EU-hosted accounts (jobs.eu.lever.co) live on a separate API and answer 404
+// on the US one — common for European companies, so both are tried.
+const LEVER_EU_BASE_URL = 'https://api.eu.lever.co/v0/postings';
+const FETCH_CONCURRENCY = 6;
+const REQUEST_TIMEOUT_MS = 20000;
+
+/** API base matching a posting's hostedUrl region. */
+function apiBaseFor(hostedUrl) {
+  return String(hostedUrl || '').includes('jobs.eu.lever.co') ? LEVER_EU_BASE_URL : LEVER_BASE_URL;
+}
+
+/** GET a Lever board → array of postings, or null when the board is not on that API. */
+async function fetchBoard(baseUrl, slug) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${baseUrl}/${encodeURIComponent(slug)}?mode=json`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data) ? data : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 const companySiteNames = [
   // Tech companies with frequent job postings
@@ -131,6 +160,25 @@ const companySiteNames = [
   'sambatv',  // Added via discovery — 1 DE / 57 total
   'redhorsecorp',  // Added via discovery — 1 DE / 64 total
   // --- DISCOVERY 2026-09-15 (web search + API verified: >=1 job in Germany) ---
+  // --- GERMAN EXPANSION 2026-10-19 ---
+  // Verified: board reachable AND >=1 job located in Germany.
+  'lovehoneygroup',  // 19 DE / 43 total
+  'insiderone',  // 8 DE / 113 total
+  'unzer',  // 6 DE / 14 total
+  'efficioconsulting',  // 5 DE / 38 total
+  'infinit',  // 4 DE / 8 total
+  'mendix',  // 4 DE / 38 total
+  'karllagerfeld',  // 3 DE / 50 total
+  'xentral',  // 1 DE / 1 total
+  'espace',  // 1 DE / 112 total
+  'keyloop',  // 1 DE / 68 total
+  'oni',  // 1 DE / 19 total
+  'olx',  // 1 DE / 56 total
+  // --- GERMAN EXPANSION 2026-10-19 ---
+  // Verified: board reachable AND >=1 job located in Germany.
+  'saviynt',  // 2 DE / 69 total
+  'appen',  // 1 DE / 59 total
+  'shieldai',  // 1 DE / 643 total
 ];
 
 /**
@@ -179,11 +227,13 @@ const leverConfig = {
   // No session needed (public API)
   needsSession: false,
 
-  // Use GET method
-  method: 'GET',
-
-  // Each "page" = one company
-  limit: 1,
+  // Every company is fetched up front into _allJobsQueue, like the other
+  // configs. The old one-company-per-page flow ended the whole Lever run at the
+  // first board that 404'd or had no Germany jobs — on 2026-10-19 that was
+  // company #1 (welocalize), so none of the 119 boards was ever scraped.
+  limit: 20,
+  _allJobsQueue: [],
+  _initialized: false,
 
   // ? FIX: Lever's company listing API returns only a short intro snippet.
   // Setting this to true triggers processor.js to call getDetails() for the full description.
@@ -218,7 +268,7 @@ const leverConfig = {
         return null;
       }
 
-      const detailUrl = `${LEVER_BASE_URL}/${companySlug}/${jobId}`;
+      const detailUrl = `${apiBaseFor(rawJob.hostedUrl)}/${companySlug}/${jobId}`;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 20000);
 
@@ -278,73 +328,48 @@ const leverConfig = {
     }
   },
 
-  // Base URL
   baseUrl: LEVER_BASE_URL,
 
-  /**
-   * Build URL for current company
-   */
-  buildPageUrl: (offset, limit) => {
-    const companyIndex = offset;
+  async initialize() {
+    if (this._initialized) return;
+    this._allJobsQueue = [];
 
-    if (companyIndex >= companySiteNames.length) {
-      console.log(`[Lever] ? Finished checking all ${companySiteNames.length} companies`);
-      return null;
-    }
+    console.log(`[Lever] Fetching ${companySiteNames.length} companies (US API, EU fallback)...`);
+    let withJobs = 0;
+    let eu = 0;
+    let dead = 0;
+    let cursor = 0;
 
-    const siteName = companySiteNames[companyIndex];
-    const url = `${LEVER_BASE_URL}/${siteName}?mode=json`;
+    const lane = async () => {
+      while (cursor < companySiteNames.length) {
+        const slug = companySiteNames[cursor++];
+        let jobs = await fetchBoard(LEVER_BASE_URL, slug);
+        if (jobs === null) {
+          jobs = await fetchBoard(LEVER_EU_BASE_URL, slug);
+          if (jobs !== null) eu++;
+        }
+        if (jobs === null) { dead++; continue; }
 
-    console.log(`\n[Lever] ?? Company ${companyIndex + 1}/${companySiteNames.length}: ${siteName}`);
+        const germanyJobs = jobs.filter(hasGermanyLocation);
+        if (germanyJobs.length > 0) {
+          withJobs++;
+          this._allJobsQueue.push(...germanyJobs);
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: FETCH_CONCURRENCY }, lane));
 
-    return url;
+    console.log(`[Lever] ✅ ${withJobs} companies with Germany jobs (${eu} on the EU API), ${dead} unreachable, ${this._allJobsQueue.length} jobs queued`);
+    this._initialized = true;
   },
 
-  /**
-   * Extract and filter jobs from API response
-   * 
-   * DEBUGGING ENABLED: Shows what we receive from API
-   */
-  getJobs: (data) => {
-    // DEBUG: Log what we received
-    if (!data) {
-      console.log(`       ? No data received from API`);
-      return [];
-    }
-
-    const allJobs = Array.isArray(data) ? data : [];
-
-    // DEBUG: Log job count
-    console.log(`       ?? Received ${allJobs.length} total jobs`);
-
-    if (allJobs.length === 0) {
-      console.log(`       ?  No jobs found for this company`);
-      return [];
-    }
-
-    // DEBUG: Log first job structure (helps diagnose issues)
-    if (allJobs.length > 0) {
-      const firstJob = allJobs[0];
-      console.log(`       ?? Sample job fields:`, {
-        id: firstJob.id ? '?' : '?',
-        text: firstJob.text ? '?' : '?',
-        country: firstJob.country || 'none',
-        location: firstJob.categories?.location || 'none',
-        allLocations: firstJob.categories?.allLocations?.length || 0
-      });
-    }
-
-    // Filter for Germany
-    const germanyJobs = allJobs.filter(hasGermanyLocation);
-
-    if (germanyJobs.length > 0) {
-      console.log(`       ? Found ${germanyJobs.length} Germany jobs!`);
-    } else {
-      console.log(`       ?  No Germany jobs (checked ${allJobs.length} jobs)`);
-    }
-
-    return germanyJobs;
+  async fetchPage(offset, limit) {
+    if (!this._initialized) await this.initialize();
+    return { jobs: this._allJobsQueue.slice(offset, offset + limit), total: this._allJobsQueue.length };
   },
+
+  getJobs(data) { return data.jobs || []; },
+  getTotal(data) { return data.total || 0; },
 
   /**
    * Extract unique job ID

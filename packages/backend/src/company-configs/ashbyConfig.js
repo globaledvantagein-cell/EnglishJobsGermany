@@ -459,6 +459,33 @@ export const ashbyConfig = {
         'kandou-ai',  // Added via discovery — 1 DE / 42 total
         'phrase',  // Added via discovery — 1 DE / 10 total
         'won.ai',  // Added via discovery — 1 DE / 7 total
+        // --- GERMAN EXPANSION 2026-10-19 ---
+        // Verified: board reachable AND >=1 job located in Germany.
+        'kijimea',  // 38 DE / 38 total
+        'vaeridion',  // 23 DE / 32 total
+        'stealthrocketrystartup',  // 19 DE / 19 total
+        'koro',  // 17 DE / 20 total
+        'ppro',  // 12 DE / 23 total
+        'rematiq-gmbh',  // 11 DE / 11 total
+        'neuverge-tron',  // 10 DE / 10 total
+        'oviva',  // 10 DE / 33 total
+        'kertos',  // 7 DE / 7 total
+        'dryft',  // 6 DE / 13 total
+        'patronus',  // 4 DE / 4 total
+        'dewarmte',  // 4 DE / 18 total
+        'eggai',  // 3 DE / 8 total
+        'kyrall',  // 3 DE / 3 total
+        'virtual-identity',  // 3 DE / 5 total
+        'dedale-intelligence',  // 2 DE / 32 total
+        'qlub',  // 2 DE / 22 total
+        'hipeople-official',  // 1 DE / 2 total
+        'infisical',  // 1 DE / 7 total
+        'neuralframes',  // 1 DE / 1 total
+        'the-rec-hub',  // 1 DE / 13 total
+        'true-talent-solutions-partners',  // 1 DE / 193 total
+        // --- GERMAN EXPANSION 2026-10-19 ---
+        // Verified: board reachable AND >=1 job located in Germany.
+        'vound',  // 1 DE / 2 total
 ],
 
     // Internal state

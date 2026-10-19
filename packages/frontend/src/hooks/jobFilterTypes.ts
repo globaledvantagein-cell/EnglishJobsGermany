@@ -12,10 +12,12 @@ export const SEARCH_DEBOUNCE_MS = 400;
 export const SALARY_DEBOUNCE_MS = 800;
 
 export const DATE_DROPDOWN_OPTIONS = [
-  { value: 'All',        label: 'All time'   },
-  { value: 'Today',      label: 'Today'      },
-  { value: 'This Week',  label: 'This week'  },
-  { value: 'This Month', label: 'This month' },
+  // Rolling windows over the posting date, labelled the way LinkedIn and
+  // Indeed label them. Values stay unchanged so shared URLs keep working.
+  { value: 'All',        label: 'Any time'      },
+  { value: 'Today',      label: 'Past 24 hours' },
+  { value: 'This Week',  label: 'Past week'     },
+  { value: 'This Month', label: 'Past month'    },
 ] as const;
 
 // Attribute filter dropdown options (canonical filter* values, backend Chunk 1).

@@ -37,6 +37,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { allCandidateNames } from './german-company-candidates.js';
+import { slugVariants as baseSlugVariants } from './slug-variants.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // When --only names exactly ONE platform the run gets its own state + cache
@@ -185,8 +186,10 @@ const PLATFORMS = {
         },
     },
     lever: {
-        headSafe: true, timeout: 15000,
-        url: s => `https://api.lever.co/v0/postings/${s}?mode=json`,
+        // EU-hosted accounts (jobs.eu.lever.co) 404 on the US API, so both are
+        // tried; GET only, because HEAD on one host says nothing about the other.
+        headSafe: false, timeout: 15000, multiUrl: true,
+        urls: s => [`https://api.lever.co/v0/postings/${s}?mode=json`, `https://api.eu.lever.co/v0/postings/${s}?mode=json`],
         locations: text => {
             const d = parseJson(text);
             return Array.isArray(d) ? d.map(j => j?.categories?.location || '') : null;
@@ -234,6 +237,18 @@ const PLATFORMS = {
                 }
             }
             return out;
+        },
+    },
+    softgarden: {
+        // German-native ATS. Server-rendered HTML (captured with REA): a real
+        // board answers 200 with "../job/{id}/" links, a missing one 404.
+        // Each row's city sits in a .location-view-item span.
+        headSafe: false, timeout: 20000,
+        url: s => `https://${s}.softgarden.io/de/vacancies`,
+        locations: text => {
+            if (!text || !text.includes('class="outputContainer"')) return null;
+            return [...text.matchAll(/class="matchElement"[\s\S]*?(?=class="matchElement"|$)/g)].map(row =>
+                [...row[0].matchAll(/location-view-item">([^<]*)</g)].map(m => m[1].replace(/,\s*$/, '').trim()).join(', '));
         },
     },
     personio: {
@@ -312,33 +327,9 @@ async function probe(ats, slug) {
 
 // ── Candidate sources ───────────────────────────────────────────────────────
 
-/**
- * Slug variants for a company NAME. Measured on a prior corpus: the joined and
- * hyphenated forms account for ~90% of all hits, which is why they're the
- * default. --full adds the long tail for a mop-up pass.
- */
+/** Slug variants for a company name; --full widens them (see slug-variants.js). */
 export function slugVariants(name, full = FULL_VARIANTS) {
-    const cleaned = String(name).trim().toLowerCase()
-        .replace(/[.,''`®™]/g, '')
-        .replace(/&/g, ' and ')
-        .replace(/\b(gmbh|ag|se|kgaa|co kg|kg|mbh|inc|ltd|llc|plc|bv|nv|sa|as|oy|ab)\b/g, ' ')
-        .replace(/\s+/g, ' ').trim();
-    if (!cleaned) return [];
-
-    const joined = cleaned.replace(/[^a-z0-9]/g, '');
-    const hyphen = cleaned.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const out = new Set([joined, hyphen]);
-
-    if (full) {
-        out.add(cleaned.replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''));
-        out.add(joined + 'jobs');
-        out.add(`${hyphen}-jobs`);
-        out.add(joined + 'careers');
-        out.add(`${hyphen}-careers`);
-        const words = cleaned.split(' ');
-        if (words.length > 1) out.add(words.slice(0, -1).join('').replace(/[^a-z0-9]/g, ''));
-    }
-    return [...out].filter(s => s.length >= 2 && s.length <= 60);
+    return baseSlugVariants(name, full);
 }
 
 /**

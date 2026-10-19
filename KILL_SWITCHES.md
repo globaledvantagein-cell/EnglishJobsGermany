@@ -101,9 +101,14 @@ down. SSR always renders as ON, so SEO HTML and hydration never change.
 | Jobs | `applyTracking` | `apply-click, confirm-applied, applied, applied-ids` | Apply link still works; tracking and toast are off |
 | Jobs | `remoteJobs` | `/api/remote-jobs*` | `RemoteDashboard`, `RemoteJobSharePage` → paused |
 | Jobs | `searchAutocomplete` | `GET /api/(jobs\|remote-jobs)/autocomplete` | `SearchWithGhost` shows no suggestions |
+| Admin tools | `adminMaintenance` | `/api/admin/maintenance*` → 503 | `MaintenancePanel` ("Fill missing AI data" / "Recompute filters" on /admin/health) hidden |
 | Admin tools | `adminAiReanalysis` | `POST /api/jobs/admin/reanalyze*, /:id/analyze` | admin buttons get the 503 message |
 | Content | `feedbackWidget` | `POST /api/feedback` | `FeedbackWidget` hidden |
-| Background | `cronScraper` / `cronValidator` / `cronWeeklyDigest` / `cronWeeklyReset` / `cronWhatsApp` | cron skipped | — |
+| Background | `cronScraper` / `cronWeeklyDigest` / `cronWeeklyReset` / `cronWhatsApp` | cron skipped | — |
+| Background | `cronValidator` | 6-hourly dead-link cron skipped; `/api/admin/validator*` → 503 | `LinkValidatorPanel` ("Check links now" on /admin/health) hidden |
+| Background | `sourceJoin` | the daily scraper skips JOIN boards (empty queue) | — |
+| Background | `sourceSoftgarden` | the daily scraper skips softgarden boards (empty queue) | — |
+| Background | `sourceArbeitsagentur` | the daily scraper skips the Bundesagentur feed (empty queue) | — |
 | Background | `embeddingWarmer` | `warmOnce` returns early | — |
 | Background | `healthMonitor` | 10-minute health cron skipped; /admin/health history stops filling | — |
 | Background | `activityTracking` | `recordUserActivity` no-ops, so Users & growth stops updating | — |

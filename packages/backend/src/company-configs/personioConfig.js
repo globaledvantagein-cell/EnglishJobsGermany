@@ -1519,6 +1519,113 @@ companyTargets: [
     { subdomain: 'cyber-valley-gmbh', tld: 'de' },  // Added via discovery — 1 DE / 1 total
     { subdomain: 'cusp-capital-partners-gmbh', tld: 'de' },  // Added via discovery — 1 DE / 1 total
     { subdomain: 'digitalerhubregionbonnag', tld: 'de' },  // Added via discovery — 1 DE / 1 total
+    // --- GERMAN EXPANSION 2026-10-19 ---
+    // Verified: board reachable AND >=1 job located in Germany.
+    { subdomain: 'cofinpro', tld: 'de' },  // 206 DE / 214 total
+    { subdomain: 'mai-group', tld: 'de' },  // 73 DE / 127 total
+    { subdomain: 'personalberatung-florian-sommer', tld: 'de' },  // 55 DE / 71 total
+    { subdomain: 'timetoact-group', tld: 'de' },  // 40 DE / 56 total
+    { subdomain: 'lupp-partner', tld: 'de' },  // 34 DE / 34 total
+    { subdomain: 'diva-e', tld: 'de' },  // 28 DE / 29 total
+    { subdomain: 'pkf-wulf-gruppe', tld: 'de' },  // 28 DE / 116 total
+    { subdomain: 'akquinet', tld: 'de' },  // 26 DE / 53 total
+    { subdomain: 'netplans', tld: 'de' },  // 25 DE / 74 total
+    { subdomain: 'kinderhut', tld: 'de' },  // 24 DE / 30 total
+    { subdomain: 'parte-verwaltung-gmbh', tld: 'de' },  // 23 DE / 37 total
+    { subdomain: 'waldemar-link-gmbh-co-kg', tld: 'de' },  // 23 DE / 25 total
+    { subdomain: 'governikus', tld: 'de' },  // 22 DE / 30 total
+    { subdomain: 'heidelbergengineering', tld: 'de' },  // 21 DE / 28 total
+    { subdomain: 'lang-consulting-gmbh', tld: 'de' },  // 21 DE / 21 total
+    { subdomain: 'statworx', tld: 'de' },  // 21 DE / 21 total
+    { subdomain: 'avelion-group', tld: 'de' },  // 17 DE / 18 total
+    { subdomain: 'kloepfel-consulting-gmbh', tld: 'de' },  // 17 DE / 21 total
+    { subdomain: 'vier', tld: 'de' },  // 17 DE / 22 total
+    { subdomain: 'lidrotec', tld: 'de' },  // 15 DE / 15 total
+    { subdomain: 'revive', tld: 'de' },  // 15 DE / 15 total
+    { subdomain: 'codegaia', tld: 'de' },  // 14 DE / 23 total
+    { subdomain: 'partspace', tld: 'de' },  // 14 DE / 29 total
+    { subdomain: 'lwlcom', tld: 'de' },  // 13 DE / 13 total
+    { subdomain: 'quibiq', tld: 'de' },  // 13 DE / 18 total
+    { subdomain: 'rwt', tld: 'de' },  // 12 DE / 44 total
+    { subdomain: 'arvana', tld: 'de' },  // 11 DE / 22 total
+    { subdomain: 'capera', tld: 'de' },  // 11 DE / 18 total
+    { subdomain: 'haebmau', tld: 'de' },  // 10 DE / 10 total
+    { subdomain: 'integration-factory', tld: 'de' },  // 10 DE / 10 total
+    { subdomain: 'netlogix', tld: 'de' },  // 10 DE / 10 total
+    { subdomain: 'nexmart', tld: 'de' },  // 10 DE / 10 total
+    { subdomain: 'raysono', tld: 'de' },  // 10 DE / 15 total
+    { subdomain: 'bitop', tld: 'de' },  // 9 DE / 9 total
+    { subdomain: 'e-farm', tld: 'de' },  // 9 DE / 9 total
+    { subdomain: 'ehoi', tld: 'de' },  // 9 DE / 10 total
+    { subdomain: 'finnofleet', tld: 'de' },  // 9 DE / 14 total
+    { subdomain: 'viataurus', tld: 'de' },  // 8 DE / 30 total
+    { subdomain: 'ecdb-gmbh-latest', tld: 'de' },  // 7 DE / 7 total
+    { subdomain: 'syracom', tld: 'de' },  // 7 DE / 7 total
+    { subdomain: 'ubica-robotics', tld: 'de' },  // 7 DE / 12 total
+    { subdomain: 'we-love-x', tld: 'de' },  // 7 DE / 7 total
+    { subdomain: 'assecor-gmbh', tld: 'de' },  // 6 DE / 17 total
+    { subdomain: 'falstaff', tld: 'de' },  // 6 DE / 16 total
+    { subdomain: 'makaro-gmbh', tld: 'de' },  // 6 DE / 8 total
+    { subdomain: 'mayflower', tld: 'de' },  // 6 DE / 10 total
+    { subdomain: 'eleqtron', tld: 'de' },  // 5 DE / 6 total
+    { subdomain: '21torr', tld: 'de' },  // 5 DE / 9 total
+    { subdomain: 'advasolutions', tld: 'de' },  // 5 DE / 18 total
+    { subdomain: 'alteos', tld: 'de' },  // 5 DE / 5 total
+    { subdomain: 'avisol', tld: 'de' },  // 5 DE / 6 total
+    { subdomain: 'checkcars24', tld: 'de' },  // 5 DE / 5 total
+    { subdomain: 'gwadriga', tld: 'de' },  // 5 DE / 5 total
+    { subdomain: 'ingestro', tld: 'de' },  // 5 DE / 6 total
+    { subdomain: 'lissi', tld: 'de' },  // 5 DE / 6 total
+    { subdomain: 'modulat-leasing', tld: 'de' },  // 5 DE / 5 total
+    { subdomain: 'prodyna', tld: 'de' },  // 5 DE / 6 total
+    { subdomain: 'scale', tld: 'de' },  // 5 DE / 6 total
+    { subdomain: 'starface', tld: 'de' },  // 5 DE / 5 total
+    { subdomain: 'vitaservices', tld: 'de' },  // 5 DE / 11 total
+    { subdomain: 'yatta', tld: 'de' },  // 5 DE / 9 total
+    { subdomain: 'atp-autoteile', tld: 'de' },  // 4 DE / 16 total
+    { subdomain: 'fahrrad-xxl-de', tld: 'de' },  // 4 DE / 25 total
+    { subdomain: 'hairfree', tld: 'de' },  // 4 DE / 13 total
+    { subdomain: 'inspace', tld: 'de' },  // 4 DE / 32 total
+    { subdomain: 'movesell', tld: 'de' },  // 4 DE / 6 total
+    { subdomain: 'pagnos', tld: 'de' },  // 4 DE / 4 total
+    { subdomain: 'theobald-software-gmbh', tld: 'de' },  // 4 DE / 7 total
+    { subdomain: 'wire-1', tld: 'de' },  // 4 DE / 12 total
+    { subdomain: 'azadivine', tld: 'de' },  // 3 DE / 3 total
+    { subdomain: 'ceis-gmbh', tld: 'de' },  // 3 DE / 3 total
+    { subdomain: 'enopai', tld: 'de' },  // 3 DE / 3 total
+    { subdomain: 'jemix-gmbh', tld: 'de' },  // 3 DE / 4 total
+    { subdomain: 'juit', tld: 'de' },  // 3 DE / 5 total
+    { subdomain: 'tozero', tld: 'de' },  // 3 DE / 5 total
+    { subdomain: 'accurids-gmbh', tld: 'de' },  // 2 DE / 2 total
+    { subdomain: 'cbe-digiden', tld: 'de' },  // 2 DE / 2 total
+    { subdomain: 'choice', tld: 'de' },  // 2 DE / 2 total
+    { subdomain: 'fassbender-tenten', tld: 'de' },  // 2 DE / 4 total
+    { subdomain: 'growthartig-gmbh', tld: 'de' },  // 2 DE / 2 total
+    { subdomain: 'interlead', tld: 'de' },  // 2 DE / 6 total
+    { subdomain: 'new', tld: 'de' },  // 2 DE / 3 total
+    { subdomain: 'novases', tld: 'de' },  // 2 DE / 2 total
+    { subdomain: 'spaceteams', tld: 'de' },  // 2 DE / 2 total
+    { subdomain: 'wattfox', tld: 'de' },  // 2 DE / 3 total
+    { subdomain: 'aeberle', tld: 'de' },  // 1 DE / 1 total
+    { subdomain: 'allunity', tld: 'de' },  // 1 DE / 1 total
+    { subdomain: 'ayunis', tld: 'de' },  // 1 DE / 1 total
+    { subdomain: 'bauwert', tld: 'de' },  // 1 DE / 1 total
+    { subdomain: 'edl-consulting', tld: 'de' },  // 1 DE / 7 total
+    { subdomain: 'herchenbach', tld: 'de' },  // 1 DE / 14 total
+    { subdomain: 'homify', tld: 'de' },  // 1 DE / 8 total
+    { subdomain: 'huber', tld: 'de' },  // 1 DE / 27 total
+    { subdomain: 'logitel', tld: 'de' },  // 1 DE / 3 total
+    { subdomain: 'open-mind-technologies', tld: 'de' },  // 1 DE / 14 total
+    { subdomain: 'proforsoftware', tld: 'de' },  // 1 DE / 3 total
+    { subdomain: 'serview-gmbh', tld: 'de' },  // 1 DE / 20 total
+    { subdomain: 'skopos-group', tld: 'de' },  // 1 DE / 7 total
+    { subdomain: 'synology', tld: 'de' },  // 1 DE / 10 total
+    // --- GERMAN EXPANSION 2026-10-19 ---
+    // Verified: board reachable AND >=1 job located in Germany.
+    { subdomain: 'teamative', tld: 'de' },  // 20 DE / 43 total
+    { subdomain: 'clearwater', tld: 'de' },  // 11 DE / 11 total
+    { subdomain: 'and-e', tld: 'de' },  // 2 DE / 19 total
+    { subdomain: 'giant-swarm', tld: 'de' },  // 1 DE / 2 total
 ],
 
     // Internal state

@@ -8,7 +8,9 @@
 // TRUST HIERARCHY (which source wins when they disagree):
 //   Workplace   : Gemma remote_policy_detail (≠ not_mentioned) → ATS WorkplaceType
 //                 → scan Location for "remote" → null
-//   Experience  : Gemma experience_level → ATS ExperienceLevel → isEntryLevel flag → null
+//   Experience  : explicit title seniority → JD years (Gemma min_experience_years)
+//                 → Gemma experience_level → ATS ExperienceLevel → "mid".
+//                 See resolveExperience() for the evidence behind each step.
 //   Employment  : Gemma employment_type → ATS EmploymentType → null
 //   Salary      : ATS SalaryMin/SalaryMax (structured beats text) → Gemma salary_*
 //                 → null. The PAIR is atomic: sources are never mixed within one
@@ -16,8 +18,9 @@
 //                 pair (tier "ats"); only when the ATS has neither do we fall to
 //                 Gemma (tier "jd"). Mirrors buildSalaryUpdate() in
 //                 gemma/backgroundExtractor.js.
-//   Visa        : Gemma visa_sponsorship only. "available" → "available", else null.
-//   Relocation  : Gemma relocation_support only. "available" → "available", else null.
+//   Visa        : negative sentence in the ad → null; Gemma "available" or a
+//                 clean positive sentence → "available"; else null.
+//   Relocation  : same rule as visa (see resolveBenefit()).
 //
 // Every exported function is null-safe, tolerates a missing `parsedRequirements`
 // or missing ATS fields, and never throws.
@@ -126,18 +129,39 @@ const EMPLOYMENT_MAP = new Map(Object.entries({
     'teilzeit': 'parttime',
     'contract': 'contract',
     'freelance': 'contract',
+    'freelancer': 'contract',
+    'contractor': 'contract',
+    'freie mitarbeit': 'contract',
     'temporary': 'contract',
+    'temp': 'contract',
     'befristet': 'contract',
     'fixed-term': 'contract',
-    'contractor': 'contract',
+    'fixed_term': 'contract',
+    'befristeter vertrag': 'contract',
     'zeitarbeit': 'contract',
+    'arbeitnehmerüberlassung': 'contract',
     'internship': 'internship',
+    'intern': 'internship',
+    'praktikum': 'internship',
     'werkstudent': 'internship',
     'working student': 'internship',
-    'praktikum': 'internship',
+    'working_student': 'internship',
+    'studentenjob': 'internship',
     'ausbildung': 'internship',
+    'berufsausbildung': 'internship',
     'apprenticeship': 'internship',
+    'duales studium': 'internship',
 }));
+
+// An explicit title decides the type, same principle as seniority: "Werkstudent
+// Data (m/w/d)" is a student job whatever the ATS field says ("FullTime" is a
+// common default). Werkstudent, Ausbildung and Praktikum all belong to the
+// existing Internship option.
+const TITLE_EMPLOYMENT = [
+    ['internship', /\b(werkstudent(in)?|working student|studentische hilfskraft)\b/i],
+    ['internship', /\b(ausbildung|auszubildende[rn]?|azubi|apprentice(ship)?|duales studium|dual(e|er)? student(in)?)\b/i],
+    ['internship', /\b(intern|internship|praktikum|praktikant(in)?|pflichtpraktikum)\b/i],
+];
 
 /** Look up `raw` in `map` case-insensitively. Returns canonical value or null. */
 function lookup(map, raw) {
@@ -171,34 +195,102 @@ export function resolveWorkplace(job) {
     return null;
 }
 
+// ─── Experience ───────────────────────────────────────────────────────────────
+//
+// Evidence (2026-10-20) behind the order in resolveExperience():
+//   - Live data: SmartRecruiters' experienceLevel was "Entry" on 351 active jobs,
+//     169 of them titled Senior/Lead/Manager — boards leave the field at its
+//     default. Vendor labels therefore lose to an explicit title.
+//   - LinkedIn (captured in a real browser): its Entry level returned 0
+//     Senior/Lead titles; plain titles ("Software Engineer") did appear.
+//   - Title keywords are the published method for seniority (resume-seniority
+//     study arXiv 2106.11846; Lightcast labels Junior/Senior from title wording
+//     and everything else "Intermediate" → our "mid" default).
+//   - Years: Google Cloud Talent JobLevel ENTRY_LEVEL = "less than 2 years";
+//     job-board guidance 0–2 / 3–5 / 6+; Datapeople 1–3 / 4–7 / 8+. Hence
+//     ≤1 → entry, 2–4 → mid, ≥5 → senior. Lead/executive are role titles,
+//     never inferred from years (Google: DIRECTOR/EXECUTIVE are role levels).
+
+// Highest matching level wins ("Senior Director" → executive).
+const TITLE_SENIORITY = [
+    ['executive', /\b(chief|ceo|cto|cfo|coo|cio|ciso|cpo|cmo|cro|svp|evp|vp|vice president|head of|director|direktor(in)?|gesch(ä|ae)ftsf(ü|ue)hrer(in)?|general manager)\b/i],
+    ['lead', /\b(principal|tech lead|team ?lead|lead|teamleiter(in)?|teamleitung|abteilungsleiter(in)?|staff\)?(\W+[\w.+#-]+){0,3}?\W+(engineer|developer|scientist|designer|architect|researcher|analyst|swe|sre))\b/i],
+    ['senior', /\b(senior|sr\.?|snr)\b/i],
+    ['entry', /\b(junior|jr\.?|intern|internship|interns|trainee|graduate|new grad|entry[- ]level|berufseinsteiger(in)?|einsteiger(in)?|working student|werkstudent(in)?|praktikant(in)?|praktikum|apprentice(ship)?|azubi|auszubildende[rn]?|ausbildung|duales studium|dual(e|er)? student(in)?|absolvent(in)?)\b/i],
+];
+// "Lead Generation Specialist" is a function, not a seniority.
+const NOT_A_LEAD = /\blead (generation|gen|nurtur|qualif|management)/i;
+// A manager title is never entry level (LinkedIn files managers under Mid-Senior).
+const MANAGER_TITLE = /\bmanager(in)?\b/i;
+
+/**
+ * Seniority stated explicitly by a job title, or null when the title carries no
+ * seniority word. Exported for tests and the audit script.
+ * @param {string} title
+ * @returns {"entry"|"senior"|"lead"|"executive"|null}
+ */
+export function seniorityFromTitle(title) {
+    const text = String(title || '');
+    if (!text) return null;
+    for (const [level, pattern] of TITLE_SENIORITY) {
+        if (level === 'lead' && pattern.test(text) && NOT_A_LEAD.test(text) && !/\b(principal|team ?lead|tech lead|teamleit)/i.test(text)) continue;
+        if (pattern.test(text)) return level;
+    }
+    return null;
+}
+
+/** Level implied by the JD's minimum years of experience, or null. */
+function levelFromYears(years) {
+    if (typeof years !== 'number' || !Number.isFinite(years) || years < 0) return null;
+    if (years <= 1) return 'entry';
+    if (years <= 4) return 'mid';
+    return 'senior';
+}
+
 /**
  * Resolve the canonical experience level for a job.
- * Gemma experience_level wins → ATS ExperienceLevel → isEntryLevel flag → null.
+ *
+ * Explicit title seniority → JD minimum years → Gemma experience_level →
+ * ATS ExperienceLevel → "mid". A manager title can never resolve to entry, and
+ * a source that only knows "N/A" simply falls through.
+ *
  * @param {object} job - full job document
- * @returns {"entry"|"mid"|"senior"|"lead"|"executive"|null}
+ * @returns {"entry"|"mid"|"senior"|"lead"|"executive"}
  */
 export function resolveExperience(job) {
     if (!job) return null;
 
-    const fromGemma = lookup(EXPERIENCE_MAP, job.parsedRequirements?.experience_level);
+    const fromTitle = seniorityFromTitle(job.JobTitle);
+    if (fromTitle) return fromTitle;
+
+    const isManager = MANAGER_TITLE.test(String(job.JobTitle || ''));
+    const notEntryForManager = (level) => (isManager && level === 'entry' ? null : level);
+
+    const fromYears = notEntryForManager(levelFromYears(job.parsedRequirements?.min_experience_years));
+    if (fromYears) return fromYears;
+
+    const fromGemma = notEntryForManager(lookup(EXPERIENCE_MAP, job.parsedRequirements?.experience_level));
     if (fromGemma) return fromGemma;
 
-    const fromAts = lookup(EXPERIENCE_MAP, job.ExperienceLevel);
+    const fromAts = notEntryForManager(lookup(EXPERIENCE_MAP, job.ExperienceLevel));
     if (fromAts) return fromAts;
 
-    if (job.isEntryLevel === true) return 'entry';
-
-    return null;
+    return 'mid';
 }
 
 /**
  * Resolve the canonical employment type for a job.
- * Gemma employment_type wins → ATS EmploymentType → null.
+ * Explicit title → Gemma employment_type → ATS EmploymentType → null.
  * @param {object} job - full job document
  * @returns {"fulltime"|"parttime"|"contract"|"internship"|null}
  */
 export function resolveEmployment(job) {
     if (!job) return null;
+
+    const title = String(job.JobTitle || '');
+    for (const [type, pattern] of TITLE_EMPLOYMENT) {
+        if (pattern.test(title)) return type;
+    }
 
     const fromGemma = lookup(EMPLOYMENT_MAP, job.parsedRequirements?.employment_type);
     if (fromGemma) return fromGemma;
@@ -206,24 +298,77 @@ export function resolveEmployment(job) {
     return lookup(EMPLOYMENT_MAP, job.EmploymentType);
 }
 
+// ─── Visa / relocation: sentence-level text evidence ─────────────────────────
+//
+// Measured 2026-10-20 on 5,131 active jobs:
+//   - 45% of jobs never got a Gemma extraction, so the AI-only rule left them
+//     blank even when the ad states the benefit.
+//   - Where Gemma did run it answered "not_mentioned" on literal statements:
+//     "International relocation support is provided", "full visa and relocation
+//     support", "Relocation support: up to €2,500".
+//   - About half of all "visa sponsorship" mentions are NEGATIVE ("Visa
+//     sponsorship is not available"), so a phrase match alone is wrong.
+// Hence: a positive phrase counts only inside a sentence with no negation, and
+// any negative sentence vetoes. Same idea as Indeed's text-derived attributes
+// ("Homeoffice", "Berufseinsteiger").
+
+const VISA_PHRASE = /\b(visa sponsorship|visa (and|&) relocation (support|assistance|help)|sponsor(ship)? (of |for )?(your |a |the )?(work )?visa|visa (support|assistance|help|process)|work permit (support|assistance|sponsorship)|blue card (support|sponsorship|application)|sponsor(ing)? (your )?(eu )?blue card|visum(sunterstützung)?)\b/i;
+const RELOCATION_PHRASE = /\b(relocation (package|support|assistance|bonus|budget|allowance|help|services?|costs?)|(visa and|and) relocation support|support (with|for) (your )?(relocation|move|moving)|help (you )?(relocate|move)|umzugs(unterstützung|kosten|hilfe|pauschale))\b/i;
+const NEGATION = /\b(not|no|none|n\/a|n't|cannot|unable|without|neither|nor|unfortunately|nicht|kein(e|en)?|leider)\b/i;
+// Sentences: punctuation, line breaks and the "…classesInternational…" joins
+// left behind when HTML list items are flattened. Never split on ":" — "Visa
+// sponsorship: Not available" must stay one (negative) sentence; 6 active
+// jobs use that header format.
+const SENTENCE_SPLIT = /(?<=[.!?;])\s+|\n+|•|(?<=[a-z])(?=[A-Z][a-z])/;
+
+/** "positive" | "negative" | null for one benefit phrase across the description. */
+function benefitFromText(description, phrase) {
+    if (!description) return null;
+    let positive = false;
+    for (const sentence of String(description).split(SENTENCE_SPLIT)) {
+        if (!phrase.test(sentence)) continue;
+        if (NEGATION.test(sentence)) return 'negative';
+        positive = true;
+    }
+    return positive ? 'positive' : null;
+}
+
+/**
+ * Shared trust order for the two "only confirmed positives" benefits:
+ * a negative sentence in the ad → null; Gemma "available" → available;
+ * a clean positive sentence → available. Without a Description (list teasers
+ * read from the RAM cache, which omits it) the stored value is kept, so a
+ * badge never disagrees with the filter that matched it.
+ */
+function resolveBenefit(job, aiField, phrase, storedField) {
+    if (!job) return null;
+    const hasText = typeof job.Description === 'string' && job.Description.length > 0;
+    if (!hasText) {
+        if (job.parsedRequirements?.[aiField] === 'available') return 'available';
+        return job[storedField] === 'available' ? 'available' : null;
+    }
+    const fromText = benefitFromText(job.Description, phrase);
+    if (fromText === 'negative') return null;
+    if (job.parsedRequirements?.[aiField] === 'available') return 'available';
+    return fromText === 'positive' ? 'available' : null;
+}
+
 /**
  * Resolve visa sponsorship. Only confirmed positives are surfaced.
- * Gemma visa_sponsorship "available" → "available"; everything else → null.
  * @param {object} job - full job document
  * @returns {"available"|null}
  */
 export function resolveVisa(job) {
-    return job?.parsedRequirements?.visa_sponsorship === 'available' ? 'available' : null;
+    return resolveBenefit(job, 'visa_sponsorship', VISA_PHRASE, 'filterVisa');
 }
 
 /**
  * Resolve relocation support. Only confirmed positives are surfaced.
- * Gemma relocation_support "available" → "available"; everything else → null.
  * @param {object} job - full job document
  * @returns {"available"|null}
  */
 export function resolveRelocation(job) {
-    return job?.parsedRequirements?.relocation_support === 'available' ? 'available' : null;
+    return resolveBenefit(job, 'relocation_support', RELOCATION_PHRASE, 'filterRelocation');
 }
 
 /** Coerce to a finite positive number, or null. */

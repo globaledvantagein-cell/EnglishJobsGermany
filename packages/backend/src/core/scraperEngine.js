@@ -9,6 +9,7 @@ import { upsertRemoteJob } from '../cache/remoteJobsCache.js';
 import { resolveWorkplace } from '../utils/filterNormalizer.js';
 import { sleep } from '../utils.js';
 import { pingIndexNowAsync, jobUrl } from '../utils/indexNow.js';
+import { deferScrapeStates, commitScrapeStates, discardScrapeStates } from './scrapeState.js';
 
 /**
  * Kick off Gemma requirement extraction for the auto-published jobs in a batch.
@@ -87,6 +88,10 @@ export async function scrapeSite(siteConfig, existingIDsMap, crossEntityKeys) {
     let processedCount = 0;
 
     console.log(`\n--- Starting scrape for [${siteName}] ---`);
+
+    // Board hashes are written only once every queued job has been processed.
+    deferScrapeStates();
+    let completed = false;
 
     try {
         const sessionHeaders = await initializeSession(siteConfig);
@@ -177,8 +182,16 @@ export async function scrapeSite(siteConfig, existingIDsMap, crossEntityKeys) {
             hasMore = shouldContinuePaging(siteConfig, jobs, offset, limit, totalJobs);
             offset += limit;
         }
+        completed = !budgetExhausted;
     } catch (error) {
         console.error(`[${siteName}] ERROR during scrape: ${error.message}.`);
+    }
+
+    if (completed) {
+        await commitScrapeStates().catch(err => console.warn(`[${siteName}] could not save scrape states: ${err.message}`));
+    } else {
+        const dropped = discardScrapeStates();
+        console.log(`[${siteName}] Run incomplete — ${dropped} board states not saved, so tomorrow re-checks them`);
     }
 
     if (allNewJobs.length > 0) {

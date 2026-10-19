@@ -20,7 +20,9 @@ export function mapRawJob(rawJob, siteConfig) {
         const extractedExperience = siteConfig.extractExperienceLevel
             ? siteConfig.extractExperienceLevel(rawJob)
             : null;
-        const derivedExperience = extractedExperience || deriveExperienceLevelFromTitle(extractedTitle);
+        // 'N/A' (SmartRecruiters' "no level") must not block the title fallback.
+        const usableExperience = extractedExperience && !/^n\/?a$/i.test(String(extractedExperience).trim()) ? extractedExperience : null;
+        const derivedExperience = usableExperience || deriveExperienceLevelFromTitle(extractedTitle);
         const extractedEntryLevel = siteConfig.extractIsEntryLevel
             ? siteConfig.extractIsEntryLevel(rawJob)
             : null;

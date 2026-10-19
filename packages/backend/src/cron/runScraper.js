@@ -34,8 +34,19 @@ export const runScraper = async function () {
         for (const siteConfig of SITES_CONFIG) {
             if (!siteConfig || !siteConfig.siteName) continue;
 
+            // Configs cache their fetched boards in _allJobsQueue behind an
+            // _initialized flag. The server is long-lived, so without this
+            // reset every run after the first replays the boot-day queue and
+            // finds no new jobs until the next restart.
+            if ('_initialized' in siteConfig) siteConfig._initialized = false;
+            if (Array.isArray(siteConfig._allJobsQueue)) siteConfig._allJobsQueue = [];
+
             const scrapeStartTime = new Date();
             const newJobs = await scrapeSite(siteConfig, existingIDsMap, crossEntityKeys);
+
+            // Free the queue now rather than holding every board in RAM until
+            // the next run (see the heap note in ecosystem.config.cjs).
+            if (Array.isArray(siteConfig._allJobsQueue)) siteConfig._allJobsQueue = [];
 
             console.log(`[${siteConfig.siteName}] Found ${newJobs.length} new jobs.`);
             await deleteOldJobs(siteConfig.siteName, scrapeStartTime);

@@ -20,6 +20,7 @@ import '../env.js';
 
 import { connectToDb } from '../db/connection.js';
 import { extractRequirements } from '../gemma/extractRequirements.js';
+import { extractAndStoreRequirements } from '../gemma/backgroundExtractor.js';
 import { getKeyCount } from '../gemma/keyManager.js';
 
 // ── Tunables ────────────────────────────────────────────────────────────────
@@ -125,10 +126,9 @@ async function main() {
     // ── Find work ────────────────────────────────────────────────────────────
     const allMatching = await jobs
         .find(QUERY, {
-            projection: {
-                _id: 1, Description: 1, JobTitle: 1, Company: 1,
-                ExperienceLevel: 1, EmploymentType: 1, Category: 1,
-            },
+            // Everything resolveAll() and the salary fill-in read (workplace,
+            // location, salary, flags) — only the heavy HTML copy is dropped.
+            projection: { DescriptionHtml: 0 },
         })
         .toArray();
 
@@ -154,7 +154,18 @@ async function main() {
     let cursor = 0;
 
     async function processJob(job, index) {
-        const result = await extractRequirements(job);
+        // A real run goes through the same path as live enrichment, so the
+        // salary fill-in and the filter* fields are written with the
+        // requirements. Writing parsedRequirements alone left every filter
+        // stale until a separate backfill ran.
+        let result;
+        if (isDryRun) {
+            result = await extractRequirements(job);
+        } else {
+            // --force re-extracts jobs that already have requirements; the
+            // extractor skips those, so hand it the job without them.
+            result = await extractAndStoreRequirements(isForce ? { ...job, parsedRequirements: undefined } : job);
+        }
 
         progress.processed++;
 
@@ -163,11 +174,6 @@ async function main() {
                 console.log(`\n[dry-run] Job ${index + 1}/${jobsToProcess.length} — ` +
                     `${job.JobTitle} @ ${job.Company} (${job._id})`);
                 console.log(JSON.stringify(result, null, 2));
-            } else {
-                await jobs.updateOne(
-                    { _id: job._id },
-                    { $set: { parsedRequirements: result } }
-                );
             }
             progress.successCount++;
         } else {

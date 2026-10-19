@@ -642,6 +642,26 @@ const companyBoards = [
 
 // --- Config export -------------------------------------------------------------
 
+/**
+ * Company name for one job. 74 of 594 config entries (2026-10-20) carry the
+ * tenant slug as their `name` ("seminolehardrock", "lindtspruengli"), so the
+ * slug is only a fallback: such jobs use the employing entity Workday reports
+ * for that job, minus internal codes ("(DE01) Zentiva Pharma GmbH",
+ * "160 Hard Rock …"). Not used per tenant: hiringOrganization is the legal
+ * entity of each job — often a foreign one ("Deco Czech A.S." for PPG) — so it
+ * is only right per job, never as one name for the whole company.
+ */
+function companyNameFor(configName, tenantSlug, hiringOrgName) {
+    const isRealName = configName && configName.toLowerCase() !== String(tenantSlug || '').toLowerCase();
+    if (isRealName) return configName;
+    const cleaned = String(hiringOrgName || '')
+        .replace(/^\s*\([A-Z0-9]{2,6}\)\s*/, '')   // "(DE01) Zentiva…"
+        .replace(/^\s*-\s*/, '')                     // "- Illinois Tool Works Inc."
+        .replace(/^\s*\d+\s+(?=\S)/, '')              // "160 Hard Rock…"
+        .trim();
+    return cleaned || configName || tenantSlug || '';
+}
+
 export const workdayConfig = {
     siteName: 'Workday Jobs',
     companyBoards,
@@ -965,7 +985,7 @@ export const workdayConfig = {
                 EmploymentType: employmentType,
                 WorkplaceType: workplaceType,
                 Department: department || null,
-                Company: _companyName || hiringOrg.name,
+                Company: companyNameFor(_companyName, _company, hiringOrg.name),
             };
         } catch (err) {
             return null;

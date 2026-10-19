@@ -5,10 +5,11 @@
 //      that field and it is irrelevant to the vertical.
 //   2. A `country` facet (US / GB / CA / …), backed by the remote cache's
 //      country inverted index. German jobs are all DE, so they have no such filter.
+import { companyKey } from './companyKey.js';
 import {
     getAllRemoteJobs, getRemoteJobsArray, getRemoteCacheStats,
     getRemoteWorkplaceIndex, getRemoteExperienceIndex, getRemoteEmploymentIndex,
-    getRemoteSalaryTierIndex, getRemoteCategoryIndex, getRemoteCompanyIndex,
+    getRemoteSalaryTierIndex, getRemoteCategoryIndex, getRemoteCompanyIndex, getRemoteCompanyDisplayName,
     getRemoteCountryIndex,
 } from './remoteJobsCache.js';
 import { ALL_CATEGORIES } from '../core/categorize.js';
@@ -65,7 +66,9 @@ function computeFilteredIndexSet(filters = {}) {
 
     const facetSets = [];
 
-    const companySet = facetUnion(getRemoteCompanyIndex(), filters.company);
+    // Selected names are normalized like the index keys, so "Databricks, Inc."
+    // still matches every Databricks entity (and old URLs keep working).
+    const companySet = facetUnion(getRemoteCompanyIndex(), filters.company?.map(companyKey));
     if (companySet) facetSets.push(companySet);
 
     const categorySet = facetUnion(
@@ -214,8 +217,8 @@ export function getRemoteFilterCountsFromCache(filters = {}) {
 // ────────────────────────────────────────────────────────────────────────
 export function getRemoteCompanyNamesFromCache() {
     const companies = [];
-    for (const name of getRemoteCompanyIndex().keys()) {
-        if (name !== '_null') companies.push(name);
+    for (const key of getRemoteCompanyIndex().keys()) {
+        if (key !== '_null') companies.push(getRemoteCompanyDisplayName(key) ?? key);
     }
     return companies.sort((a, b) => a.localeCompare(b));
 }
@@ -318,10 +321,15 @@ function applyDateToSet(resultSet, jobsArr, dateFilter) {
 
     for (const idx of resultSet) {
         const job = jobsArr[idx];
+        // scrapedAt only stands in when PostedDate is missing. It is refreshed
+        // on every re-scrape, so using it as an alternative let months-old jobs
+        // pass "Today" (614 German jobs shown, 0 posted in the window — measured
+        // 2026-10-20). LinkedIn and Indeed filter on the posting date.
         const postedDate = job.PostedDate ? new Date(job.PostedDate) : null;
-        if (postedDate && postedDate >= cutoff) continue;
-        const scrapedAt = job.scrapedAt ? new Date(job.scrapedAt) : null;
-        if (!(scrapedAt && scrapedAt >= cutoff)) resultSet.delete(idx);
+        const reference = postedDate && !Number.isNaN(postedDate.getTime())
+            ? postedDate
+            : (job.scrapedAt ? new Date(job.scrapedAt) : null);
+        if (!(reference && reference >= cutoff)) resultSet.delete(idx);
     }
 }
 

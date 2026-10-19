@@ -2,7 +2,7 @@ import { connectToDb } from '../connection.js';
 import { SITES_CONFIG } from '../../config.js';
 import { createJobModel } from '../../models/jobModel.js';
 import { ALL_CATEGORIES, categorizeJobFallback, mapLegacyCategory } from '../../core/categorize.js';
-import { resolveWorkplace } from '../../utils/filterNormalizer.js';
+import { resolveWorkplace, resolveAll } from '../../utils/filterNormalizer.js';
 
 export async function loadAllExistingIDs() {
     const db = await connectToDb();
@@ -35,6 +35,11 @@ export async function loadAllExistingIDs() {
 function targetCollectionFor(job) {
     const workplace = job.filterWorkplace ?? resolveWorkplace(job);
     return workplace === 'remote' ? 'remoteJobs' : 'jobs';
+}
+
+/** resolveAll() output minus any key the scraped model already $sets (Mongo rejects overlaps). */
+function filterFieldsOnInsert(jobData) {
+    return Object.fromEntries(Object.entries(resolveAll(jobData)).filter(([key]) => !(key in jobData)));
 }
 
 /** The upsert op for one job — identical shape for both collections. */
@@ -72,6 +77,14 @@ function buildUpsertOp(job) {
                 $setOnInsert: {
                     createdAt: new Date(),
                     Category: fallbackCategory,
+                    // Filter fields from the ATS data alone, so a job is
+                    // filterable the moment it exists. They used to be written
+                    // only by the Gemma enrichment, and 1,711 active jobs whose
+                    // enrichment never ran (budget, errors) were invisible to
+                    // every attribute filter. Gemma recomputes them later with
+                    // parsedRequirements; insert-only so a re-scrape never
+                    // overwrites that refinement.
+                    ...filterFieldsOnInsert(pureJobData),
                 }
             },
             upsert: true,

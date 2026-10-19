@@ -1,3 +1,4 @@
+import { companyKey, createSpellingTracker } from './companyKey.js';
 import {connectToDb} from '../db/connection.js';
 import {
     initSearchIndex, resetSearchIndex, addToSearchIndex, removeFromSearchIndex,
@@ -28,6 +29,8 @@ let relocationIndex = new Map();   // "available" → Set{4, ...}
 let salaryTierIndex = new Map();   // "ats"/"jd"  → Set{...}
 let categoryIndex = new Map();     // "software"  → Set{0, 1, ...}
 let companyIndex = new Map();      // "SAP"       → Set{...}
+// Keyed by companyKey(); spellings feed the dropdown label (see companyKey.js).
+const companySpellings = createSpellingTracker();
 
 // For salary range queries: { min, max, idx }, kept sorted by min ascending.
 // (Range predicates can't use a value-keyed inverted index.)
@@ -82,7 +85,8 @@ function indexJob(idx, job) {
     if (job.filterSalaryTier) addToIndex(salaryTierIndex, job.filterSalaryTier, idx);
 
     addToIndex(categoryIndex, job.Category || '_null', idx);
-    addToIndex(companyIndex, job.Company || '_null', idx);
+    addToIndex(companyIndex, companyKey(job.Company), idx);
+    if (job.Company) companySpellings.add(companyKey(job.Company), job.Company);
 
     if (hasSalaryRange(job)) {
         salaryRangeArray.push({
@@ -108,7 +112,8 @@ function removeJobFromIndexes(idx, job) {
     if (job.filterSalaryTier) removeFromIndex(salaryTierIndex, job.filterSalaryTier, idx);
 
     removeFromIndex(categoryIndex, job.Category || '_null', idx);
-    removeFromIndex(companyIndex, job.Company || '_null', idx);
+    removeFromIndex(companyIndex, companyKey(job.Company), idx);
+    if (job.Company) companySpellings.remove(companyKey(job.Company), job.Company);
 
     if (hasSalaryRange(job)) {
         salaryRangeArray = salaryRangeArray.filter(entry => entry.idx !== idx);
@@ -130,6 +135,7 @@ function clearIndexes() {
     salaryTierIndex = new Map();
     categoryIndex = new Map();
     companyIndex = new Map();
+    companySpellings.clear();
     salaryRangeArray = [];
 }
 
@@ -379,6 +385,8 @@ export function getRelocationIndex() { return relocationIndex; }
 export function getSalaryTierIndex() { return salaryTierIndex; }
 export function getCategoryIndex() { return categoryIndex; }
 export function getCompanyIndex() { return companyIndex; }
+/** Display spelling for a companyKey() — the one with the most jobs. */
+export function getCompanyDisplayName(key) { return companySpellings.displayName(key); }
 export function getSalaryRangeArray() { return salaryRangeArray; }
 
 export function getCacheStats(){
