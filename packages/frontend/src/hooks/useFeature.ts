@@ -22,7 +22,8 @@ export type FeatureKey =
   | 'smartMatch' | 'todayMatches' | 'resumeUpload' | 'matchFeedback' | 'jobPreferences'
   | 'googleLogin' | 'emailSignup' | 'promoCodes'
   | 'savedJobs' | 'applyTracking' | 'remoteJobs' | 'searchAutocomplete'
-  | 'feedbackWidget';
+  | 'feedbackWidget'
+  | 'cronValidator';
 
 const POLL_MS = 60_000;
 

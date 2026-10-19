@@ -17,6 +17,7 @@ import { careerGuideRouter } from './api/careerGuide.routes.js';
 import { adminCareerGuideRouter } from './api/admin/careerGuide.routes.js';
 import { adminCompanyProfilesRouter } from './api/admin/companyProfiles.routes.js';
 import { adminHealthRouter } from './api/admin/health.routes.js';
+import { adminValidatorRouter } from './api/admin/validator.routes.js';
 import { featuresRouter, adminFeaturesRouter } from './api/features.routes.js';
 import { featureGuard, initFeatureSwitches, runIfEnabled } from './features/index.js';
 import { attachVisitor } from './middleware/visitorMiddleware.js';
@@ -72,6 +73,7 @@ app.use('/api/career-guide', careerGuideRouter);
 app.use('/api/admin/career-guide', adminCareerGuideRouter);
 app.use('/api/admin/company-profiles', adminCompanyProfilesRouter);
 app.use('/api/admin/health', adminHealthRouter);
+app.use('/api/admin/validator', adminValidatorRouter);
 
 // NOTE: All public HTML pages — the /city/*, /category/*, /sitemap.xml SEO
 // landing pages and the /career-guide/* pages — are now served by the Next.js
@@ -134,9 +136,11 @@ app.listen(PORT, async () => {
             runScraper();
         }));
 
-        cron.schedule('0 2 * * *', runIfEnabled('cronValidator', () => {
+        // Every 6 hours: a filled job should leave the site the same day, not
+        // after the old once-a-night HEAD check (which missed Ashby/Workday).
+        cron.schedule('0 */6 * * *', runIfEnabled('cronValidator', () => {
             console.log('--- Cron Job: Running Validator ---');
-            runValidator();
+            runValidator({ source: 'cron' });
         }));
 
         // Weekly digest — daily at 8:00 AM UTC during testing.

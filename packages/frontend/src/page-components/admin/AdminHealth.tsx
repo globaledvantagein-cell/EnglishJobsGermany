@@ -19,6 +19,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { apiGet } from '../../utils/jobApi';
 import { Drawer } from '../../components/admin/Drawer';
+import LinkValidatorPanel from '../../components/admin/LinkValidatorPanel';
 import { SparkBars } from '../../components/admin/charts';
 import {
   Btn, DefinitionGrid, Dot, Empty, Kpis, Page, Pill, SearchInput, Seg, SkeletonRows, errorText, type Tone,
@@ -156,6 +157,8 @@ export default function AdminHealth() {
             { label: 'Median latency', value: kpis.median != null ? `${kpis.median}ms` : '—', note: 'this run' },
             { label: 'Slowest', value: kpis.slowest ? `${kpis.slowest.latencyMs}ms` : '—', note: kpis.slowest?.label },
           ]} />
+
+          <LinkValidatorPanel onFinished={load} />
 
           {/* Fills the rest of the screen; only the table scrolls (sticky header). */}
           <div className="adm-panel adm-health-panel">

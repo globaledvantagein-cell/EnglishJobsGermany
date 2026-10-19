@@ -634,3 +634,10 @@ a.adm-kpi:hover { background: var(--adm-sunken); }
   .adm-health td:nth-child(2) { width: 100%; max-width: 0; }
   .adm-health td:nth-child(2) .adm-pill { display: none; }
 }
+
+/* ── Dead-link validator progress (LinkValidatorPanel) ── */
+.adm-linkcheck-bar { height: 6px; border-radius: 3px; background: var(--adm-accent-soft); overflow: hidden; }
+.adm-linkcheck-bar > span { display: block; height: 100%; background: var(--adm-accent); transition: width .4s ease; }
+@media (prefers-reduced-motion: reduce) { .adm-linkcheck-bar > span { transition: none; } }
+/* Phone: the two buttons wrap under the title instead of squeezing it. */
+@media (max-width: 900px) { .adm-panel-head { flex-wrap: wrap; row-gap: 4px; height: auto; min-height: 34px; padding-block: 5px; } }

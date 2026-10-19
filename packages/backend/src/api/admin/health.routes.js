@@ -36,6 +36,9 @@ import { getKeyCount as getGemmaKeyCount, getAllKeysStatus as getGemmaKeyStatus 
 import { isGeminiBudgetExhausted } from '../../gemini/geminiClient.js';
 import { LEGACY_CATEGORY_MAP } from '../../core/categorize.js';
 import { saveHealthRun, getHealthHistory } from '../../db/healthRunQueries.js';
+import { getLatestValidatorRun } from '../../db/validatorRunQueries.js';
+import { getValidatorStatus } from '../../cron/runValidator.js';
+import { isFeatureEnabled } from '../../features/featureSwitches.js';
 
 // Values written before the AI categorizer existed. A job still carrying one of
 // these is uncategorized as far as the 28-category filter is concerned.
@@ -302,6 +305,30 @@ const CHECKS = [
             const hours = (Date.now() - new Date(latest.scrapedAt).getTime()) / 3.6e6;
             if (hours > 48) return { status: 'warn', detail: `last remote scrape ${Math.round(hours)}h ago` };
             return { status: 'ok', detail: `last remote scrape ${Math.round(hours)}h ago` };
+        },
+    },
+    {
+        // Dead apply links are the most visible data bug a user hits, so the
+        // validator's own freshness and results are a check of their own.
+        key: 'link_validator', label: 'Dead-link validator', group: 'Data', critical: false,
+        run: async () => {
+            const live = getValidatorStatus();
+            if (live.running) return { status: 'ok', detail: `running now (${live.collection ?? 'starting'} ${live.checked}/${live.total})` };
+            if (!isFeatureEnabled('cronValidator')) return { status: 'warn', detail: 'kill switch OFF — dead links are not being removed' };
+
+            const last = await getLatestValidatorRun();
+            if (!last) return { status: 'warn', detail: 'never run — press "Check links now"' };
+            const hours = (Date.now() - new Date(last.finishedAt).getTime()) / 3.6e6;
+            const age = `${Math.round(hours)}h ago`;
+            if (!last.ok) return { status: 'fail', detail: `last run crashed ${age}` };
+
+            const parts = Object.entries(last.summary || {}).map(([name, s]) => `${name}: ${s.expired} expired, ${s.unknown} unknown of ${s.checked}`);
+            const tripped = Object.entries(last.summary || {}).flatMap(([name, s]) => (s.tripped || []).map(ats => `${name}/${ats}`));
+            const detail = `last run ${age} · ${parts.join(' · ')}`;
+            if (tripped.length) return { status: 'warn', detail: `breaker tripped for ${tripped.join(', ')} · ${detail}` };
+            // Cron runs every 6h; two missed runs in a row means it is not running.
+            if (hours > 13) return { status: 'warn', detail: `stale — ${detail}` };
+            return { status: 'ok', detail };
         },
     },
     {

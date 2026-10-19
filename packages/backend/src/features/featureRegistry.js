@@ -105,7 +105,12 @@ export const FEATURE_REGISTRY = [
 
     // ── Background jobs (crons) ──────────────────────────────────────────
     { key: 'cronScraper', group: 'Background jobs', label: 'Daily scraper (06:00)', description: 'Scrapes ATS boards and runs AI analysis.', routes: [] },
-    { key: 'cronValidator', group: 'Background jobs', label: 'Validator (02:00)', description: 'Re-checks live jobs and expires dead ones.', routes: [] },
+    {
+        key: 'cronValidator', group: 'Background jobs', label: 'Link validator (every 6h)',
+        description: 'Re-checks every live job against its ATS and expires dead links. Also stops the admin "Check links now" button.',
+        ui: 'Check links now button on /admin/health is hidden',
+        routes: [['*', /^\/api\/admin\/validator/]],
+    },
     { key: 'cronWeeklyDigest', group: 'Background jobs', label: 'Weekly email digest', description: 'Monday job-alert emails.', routes: [] },
     { key: 'cronWeeklyReset', group: 'Background jobs', label: 'Weekly usage reset', description: 'Monday 00:00 reset of usage counters.', routes: [] },
     { key: 'activityTracking', group: 'Background jobs', label: 'User activity tracking', description: 'Records lastActiveAt + daily active users (1 write per user per day). Feeds Users & growth.', ui: 'none (analytics stop updating)', routes: [] },

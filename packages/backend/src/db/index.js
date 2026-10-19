@@ -120,3 +120,4 @@ export {
 } from '../middleware/visitorMiddleware.js';
 export { recordUserActivity, getUserAnalytics } from './userActivityQueries.js';
 export { saveHealthRun, getHealthHistory } from './healthRunQueries.js';
+export { saveValidatorRun, getRecentValidatorRuns, getLatestValidatorRun } from './validatorRunQueries.js';
