@@ -1080,6 +1080,31 @@ button:focus {
 }
 
 /* ── Bottom sheet ──────────────────────────────────── */
+/* ── Mobile filter sheet (DashboardFilterBar / RemoteFilterBar) ──────────
+   Rendered via createPortal to <body> (see the page-wash warning). On iOS 26
+   Safari a `position: fixed; inset: 0` layer stops above the translucent
+   floating toolbar, leaving the page visible and undimmed under it. So the
+   root is sized 100lvh (behind the toolbar, to the screen edge, like iOS's
+   own sheets) and the panel pads its bottom by the toolbar's height
+   (100lvh - 100dvh) so the "Show jobs" button stays tappable above it.
+   Scoped to iOS Safari: elsewhere (Android's address bar is at the top)
+   that difference would only add empty space. */
+.m-sheet { position: fixed; top: 0; left: 0; right: 0; height: 100vh; height: 100lvh; z-index: 200; }
+.m-sheet-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.5); }
+.m-sheet-panel {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: flex; flex-direction: column;
+  background: var(--bg-base); border-radius: 20px 20px 0 0;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom) + var(--chrome-inset-bottom, 0px));
+  max-height: 80dvh;
+}
+@supports (-webkit-touch-callout: none) {
+  .m-sheet-panel {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom) + max(0px, 100lvh - 100dvh));
+    max-height: calc(80dvh + max(0px, 100lvh - 100dvh));
+  }
+}
+
 .bottom-sheet-overlay {
   position: fixed;
   inset: 0;
@@ -1107,6 +1132,15 @@ button:focus {
   max-height: 85dvh;
   padding-bottom: calc(env(safe-area-inset-bottom) + var(--chrome-inset-bottom, 0px));
   animation: slideInUp 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+/* iOS Safari: reach behind the floating toolbar, as .m-sheet does. */
+@supports (-webkit-touch-callout: none) {
+  .bottom-sheet-overlay { inset: auto; top: 0; left: 0; right: 0; height: 100vh; height: 100lvh; }
+  .bottom-sheet {
+    bottom: calc(-1 * max(0px, 100lvh - 100dvh));
+    padding-bottom: calc(env(safe-area-inset-bottom) + max(0px, 100lvh - 100dvh));
+    max-height: calc(85dvh + max(0px, 100lvh - 100dvh));
+  }
 }
 
 @keyframes slideInUp {

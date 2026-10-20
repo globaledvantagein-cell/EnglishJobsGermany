@@ -391,17 +391,9 @@ export function MobileFilterSheet({
   // Portaled to <body>: rendered in place, a parent's stacking context capped
   // the sheet below the cookie banner, which then covered its lower half.
   return createPortal(
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200 }}>
-      <div
-        onClick={onClose}
-        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }}
-      />
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0,
-        background: 'var(--bg-base)', borderRadius: '20px 20px 0 0',
-        padding: '16px 16px calc(16px + env(safe-area-inset-bottom) + var(--chrome-inset-bottom, 0px))',
-        maxHeight: '80dvh', display: 'flex', flexDirection: 'column',
-      }}>
+    <div className="m-sheet" role="dialog" aria-modal="true" aria-label="Filters">
+      <div className="m-sheet-backdrop" onClick={onClose} />
+      <div className="m-sheet-panel">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>Filters</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}>
