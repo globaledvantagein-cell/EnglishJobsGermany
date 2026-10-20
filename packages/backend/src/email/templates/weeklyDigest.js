@@ -23,8 +23,11 @@ import {
 } from './weeklyDigest/picker.js';
 import { renderHtml } from './weeklyDigest/htmlBody.js';
 import { renderText } from './weeklyDigest/textBody.js';
+import { SITE_URL } from '../../env.js';
 
-const BASE_URL = process.env.FRONTEND_ORIGIN || 'https://englishjobsgermany.com';
+// Links in emails must point at the public site. FRONTEND_ORIGIN is a CORS
+// value and is localhost on a dev machine, which broke links in mail sent from one.
+const BASE_URL = SITE_URL;
 
 /**
  * @param {Object} args
@@ -35,7 +38,7 @@ const BASE_URL = process.env.FRONTEND_ORIGIN || 'https://englishjobsgermany.com'
  */
 export function renderWeeklyDigest({ user, jobsByCategory, totalJobs }) {
     const firstName = capitalizeFirst((user.name || 'there').split(' ')[0]);
-    const unsubscribeUrl = buildUnsubscribeUrl(user.email, BASE_URL);
+    const unsubscribeUrl = buildUnsubscribeUrl(user.email);
 
     // Apply the 8-job cap fairly across categories
     const { picked, total: shownTotal } = pickTopJobs(jobsByCategory, MAX_JOBS_PER_EMAIL);

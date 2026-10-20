@@ -5,5 +5,7 @@ declare global {
   interface Window {
     gtag?: (...args: unknown[]) => void;
     dataLayer?: unknown[];
+    /** Microsoft Clarity's global; `q` queues calls made before the tag loads. */
+    clarity?: ((...args: unknown[]) => void) & { q?: unknown[][] };
   }
 }

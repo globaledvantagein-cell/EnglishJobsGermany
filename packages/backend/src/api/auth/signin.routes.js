@@ -184,7 +184,8 @@ export function attachSigninRoutes(authRouter) {
                 }
             }
 
-            res.status(200).json({ token, user, existing: mode === 'signup' && Boolean(existingUser) });
+            // isNewUser lets the frontend send one `signed_up` analytics event.
+            res.status(200).json({ token, user, existing: mode === 'signup' && Boolean(existingUser), isNewUser });
         } catch (error) {
             console.error('[Auth/Google] Failed:', error.message);
             if (error.message?.includes('accept the Terms')) {

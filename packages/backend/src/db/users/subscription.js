@@ -39,17 +39,52 @@ export async function updateLastEmailSent(emails) {
     return { modified: result.modifiedCount };
 }
 
+// Emails were stored as typed at signup on some old accounts; match them
+// case-insensitively so an unsubscribe can never miss on capitalisation.
+const EMAIL_COLLATION = { locale: 'en', strength: 2 };
+
 /**
- * Flip `isSubscribed` to false for a user. Used by the one-click
- * unsubscribe endpoint. Returns true if a user was updated.
+ * Set `isSubscribed` for a user by email. Used by the one-click unsubscribe
+ * link and by the admin Subscribers panel. Idempotent: setting the value a
+ * user already has is reported as found but not changed.
+ *
+ * @param {string} email
+ * @param {boolean} isSubscribed
+ * @param {string} source - who made the change: 'link', 'one-click', 'admin'
+ * @returns {Promise<{ found: boolean, changed: boolean }>}
  */
-export async function unsubscribeUser(email) {
+export async function setSubscriptionByEmail(email, isSubscribed, source) {
     const db = await connectToDb();
-    const result = await db.collection('users').updateOne(
-        { email: String(email).toLowerCase().trim() },
-        { $set: { isSubscribed: false, updatedAt: new Date() } },
+    const now = new Date();
+    const set = isSubscribed
+        ? { isSubscribed: true, updatedAt: now }
+        : { isSubscribed: false, unsubscribedAt: now, unsubscribeSource: source, updatedAt: now };
+    const result = await db.collection('users').updateMany(
+        { email: String(email).trim() },
+        { $set: set },
+        { collation: EMAIL_COLLATION },
     );
-    return result.modifiedCount > 0;
+    return { found: result.matchedCount > 0, changed: result.modifiedCount > 0 };
+}
+
+/**
+ * Admin Subscribers panel: users matching `query` (email or name), newest
+ * first, plus mailing-list totals.
+ */
+export async function listSubscribers({ query = '', limit = 50 } = {}) {
+    const db = await connectToDb();
+    const users = db.collection('users');
+    const q = String(query).trim();
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const filter = q ? { $or: [{ email: { $regex: escaped, $options: 'i' } }, { name: { $regex: escaped, $options: 'i' } }] } : {};
+    const [rows, subscribed, total] = await Promise.all([
+        users.find(filter, {
+            projection: { email: 1, name: 1, isSubscribed: 1, createdAt: 1, lastEmailSent: 1, unsubscribedAt: 1, unsubscribeSource: 1 },
+        }).sort({ createdAt: -1 }).limit(Math.min(Number(limit) || 50, 200)).toArray(),
+        users.countDocuments({ isSubscribed: true }),
+        users.countDocuments({}),
+    ]);
+    return { users: rows, totals: { subscribed, unsubscribed: total - subscribed, total } };
 }
 
 /**

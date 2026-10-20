@@ -13,6 +13,7 @@ import { apiPost, ApiError } from '../utils/jobApi';
 import { JobDetailView } from './job-detail';
 import type { GateUsage } from '../types';
 import { isFeatureOn } from '../hooks/useFeature';
+import { useJobReadTime } from '../hooks/useJobReadTime';
 
 interface Props {
   job: IJob;
@@ -36,6 +37,7 @@ export default function PublicJobDetail({ job, onApplyTracked, onAuthRequired, o
   // job the user opens.
   useEffect(() => {
     track('job_viewed', {
+      vertical: 'germany',
       job_id: job._id,
       job_title: job.JobTitle,
       company: job.Company,
@@ -44,6 +46,7 @@ export default function PublicJobDetail({ job, onApplyTracked, onAuthRequired, o
       experience: job.filterExperience,
     });
   }, [job._id, job.JobTitle, job.Company, job.Category, job.filterWorkplace, job.filterExperience]);
+  useJobReadTime(job._id, 'germany');
 
   const primaryLocation = getDisplayLocation(job);
   const locations = [primaryLocation, ...parseAllLocations(job).slice(1)];
@@ -53,6 +56,10 @@ export default function PublicJobDetail({ job, onApplyTracked, onAuthRequired, o
   const applyTarget = job.DirectApplyURL || job.ApplicationURL;
 
   const handleApplyClick = () => {
+    // The click itself is the metric: we can't know whether the application
+    // was finished on the employer's site, so nothing waits on the API.
+    track('job_applied', { vertical: 'germany', job_id: job._id, company: job.Company, category: job.Category });
+
     // Kill switch: the apply link itself always works; only tracking stops.
     if (!isFeatureOn('applyTracking')) return;
 
@@ -64,7 +71,6 @@ export default function PublicJobDetail({ job, onApplyTracked, onAuthRequired, o
     // surface the upgrade modal instead of silently swallowing it.
     apiPost<{ applyClicks: number }>(`/api/jobs/${job._id}/apply-click`, {})
       .then(result => {
-        track('job_applied', { job_id: job._id, company: job.Company, category: job.Category });
         onApplyTracked?.(job._id, result.applyClicks ?? 0);
       })
       .catch(err => {

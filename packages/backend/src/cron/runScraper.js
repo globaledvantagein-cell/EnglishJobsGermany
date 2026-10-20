@@ -6,13 +6,29 @@ import { Analytics } from '../models/analyticsModel.js';
 
 let isScraping = false;
 
-export const runScraper = async function () {
+/** True while a scrape (daily cron or the admin "Run scraper now" button) is in progress. */
+export function isScraperRunning() {
+    return isScraping;
+}
+
+/**
+ * Scrapes every source in SITES_CONFIG once. Started by the 06:00 cron and by
+ * the admin "Run scraper now" button (maintenance/taskRunner.js).
+ *
+ * @param {Object} [opts]
+ * @param {(site: string, done: number, total: number) => void} [opts.onProgress] - called before each source
+ * @returns {Promise<{ ok: boolean, reason?: string, sources?: number, newJobs?: number }>}
+ */
+export const runScraper = async function ({ onProgress } = {}) {
     if (isScraping) {
-        console.log('Scraper is already running. Skipping this scheduled run.');
-        return;
+        console.log('Scraper is already running. Skipping this run.');
+        return { ok: false, reason: 'The scraper was already running.' };
     }
     isScraping = true;
-    console.log("🚀 Starting scheduled scrape task...");
+    console.log("🚀 Starting scrape task...");
+    let sources = 0;
+    let newJobsTotal = 0;
+    let ok = true;
 
     try {
         // Safety net for a scrape started outside the server boot path: an
@@ -33,6 +49,7 @@ export const runScraper = async function () {
 
         for (const siteConfig of SITES_CONFIG) {
             if (!siteConfig || !siteConfig.siteName) continue;
+            onProgress?.(siteConfig.siteName, sources, totalSources);
 
             // Configs cache their fetched boards in _allJobsQueue behind an
             // _initialized flag. The server is long-lived, so without this
@@ -50,7 +67,10 @@ export const runScraper = async function () {
 
             console.log(`[${siteConfig.siteName}] Found ${newJobs.length} new jobs.`);
             await deleteOldJobs(siteConfig.siteName, scrapeStartTime);
+            sources += 1;
+            newJobsTotal += newJobs.length;
         }
+        onProgress?.('Refreshing caches', sources, totalSources);
 
         console.log("\n✅ All scraping complete.");
 
@@ -73,9 +93,13 @@ export const runScraper = async function () {
             console.warn('[RemoteCache] refresh failed after scrape:', remoteCacheErr.message);
         }
     } catch (error) {
-        console.error("An error occurred during the scheduled scrape:", error);
+        ok = false;
+        console.error("An error occurred during the scrape:", error);
     } finally {
         isScraping = false;
         console.log("Scrape task finished.");
     }
+    return ok
+        ? { ok: true, sources, newJobs: newJobsTotal }
+        : { ok: false, reason: `Stopped with an error after ${sources} sources (${newJobsTotal} new jobs). Check the server log.`, sources, newJobs: newJobsTotal };
 }

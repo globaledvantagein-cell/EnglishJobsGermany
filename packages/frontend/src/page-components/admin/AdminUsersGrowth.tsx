@@ -6,6 +6,7 @@
  *   Row 1  KPI strip: users, new 7d/30d (Δ), DAU/WAU/MAU, stickiness, churn
  *   Row 2  Daily trends (sparkline table) · Signup funnel · Sources & health
  *   Row 3  Weekly signup cohorts (heat table) · People going quiet
+ *   Row 4  Subscribers: search + unsubscribe/resubscribe (SubscribersPanel)
  *
  * Detail is one click away in a side drawer (a metric's daily values, a
  * user's activity) instead of more panels. Metrics follow the standard SaaS
@@ -18,6 +19,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiGet } from '../../utils/jobApi';
 import { DataTable, type Column } from '../../components/admin/DataTable';
 import { Drawer } from '../../components/admin/Drawer';
+import SubscribersPanel from '../../components/admin/SubscribersPanel';
 import { Delta, HeatCell, MeterBar, SparkBars } from '../../components/admin/charts';
 import {
   Btn, DefinitionGrid, Empty, Kpis, Panel, Pill, Seg, SkeletonRows, errorText, fmtAge, fmtDate, fmtNumber,
@@ -243,6 +245,8 @@ export default function AdminUsersGrowth() {
           </div>
         </Panel>
       </div>
+
+      <SubscribersPanel />
 
       <Drawer open={Boolean(active)} onClose={() => setMetric(null)} title={active?.label ?? ''}
         sub={active ? `${fmtNumber(active.total)} in ${data.days}d · ${fmtNumber(Math.round(active.total / data.days))}/day avg` : undefined}>

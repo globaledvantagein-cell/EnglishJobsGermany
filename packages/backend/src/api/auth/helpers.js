@@ -75,9 +75,10 @@ export async function checkIfNewUser(userId) {
 }
 
 /**
- * Minimal error page shown by GET /unsubscribe when the token is bad.
+ * Minimal standalone page shown by GET /unsubscribe (success or error).
+ * Self-contained so it renders even when the frontend is down.
  */
-export function unsubscribePage(message) {
+export function unsubscribePage(message, title = 'Oops') {
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Unsubscribe — English Jobs Germany</title>
@@ -87,8 +88,12 @@ h2{font-size:1.4rem;margin:0 0 12px;}
 p{color:#999;line-height:1.6;margin:0 0 24px;font-size:0.9rem;}
 a{color:#6C9CFF;text-decoration:none;font-weight:600;}</style></head>
 <body><div class="card">
-<h2>Oops</h2>
-<p>${message}</p>
+<h2>${escapeHtml(title)}</h2>
+<p>${escapeHtml(message)}</p>
 <a href="https://englishjobsgermany.com">Back to English Jobs Germany</a>
 </div></body></html>`;
+}
+
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }

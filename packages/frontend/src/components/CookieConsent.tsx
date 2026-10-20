@@ -5,7 +5,7 @@
  * a choice is made (or until CONSENT_VERSION is bumped, which re-asks once).
  *
  * Rules implemented:
- *   - Gates ALL analytics: Google Analytics and PostHog (incl. session
+ *   - Gates ALL analytics: Google Analytics, PostHog and Clarity (incl. session
  *     recordings) load only after "Accept all" — see utils/consent.ts.
  *   - Applies to everyone: anonymous, signed-in, new — consent is per device.
  *   - Non-blocking banner (not a modal): the page stays usable, as GDPR
@@ -87,8 +87,8 @@ export default function CookieConsent() {
           <Cookie size={18} />
         </span>
         <p style={{ flex: '1 1 260px', margin: 0, fontSize: '0.82rem', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-          With your consent we use Google Analytics and PostHog (including session
-          recordings) to see how the site is used and where people get stuck. Nothing
+          With your consent we use Google Analytics, PostHog and Microsoft Clarity
+          (including session recordings) to see how the site is used and where people get stuck. Nothing
           is loaded unless you accept, and you can change this any time under
           “Cookie settings”.{' '}
           <Link to="/legal?tab=privacy" style={{ color: 'var(--acid)', textDecoration: 'none', fontWeight: 600 }}>

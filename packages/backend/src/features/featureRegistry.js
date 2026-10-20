@@ -104,9 +104,15 @@ export const FEATURE_REGISTRY = [
     },
 
     {
-        key: 'adminMaintenance', ui: 'Data maintenance buttons on /admin/health are hidden', group: 'Admin tools', label: 'Data maintenance buttons',
-        description: 'Click-only repairs: "Fill missing AI data" (Gemma) and "Recompute filters" (no AI). Never scheduled.',
+        key: 'adminMaintenance', ui: 'Background maintenance buttons on /admin are hidden', group: 'Admin tools', label: 'Data maintenance buttons',
+        description: 'Click-only jobs: "Run scraper now", "Fill missing AI data" (Gemma) and "Recompute filters" (no AI). Never scheduled by this switch.',
         routes: [['*', /^\/api\/admin\/maintenance/]],
+    },
+
+    {
+        key: 'adminSubscribers', ui: 'Subscribers panel on /admin (Users & growth) is hidden', group: 'Admin tools', label: 'Subscribers panel',
+        description: 'Admin search + subscribe/unsubscribe of digest recipients. The public unsubscribe link is never gated.',
+        routes: [['*', /^\/api\/admin\/subscribers/]],
     },
 
     // ── Background jobs (crons) ──────────────────────────────────────────

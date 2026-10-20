@@ -8,7 +8,8 @@ export {
 export {
     getSubscribedUsers,
     updateLastEmailSent,
-    unsubscribeUser,
+    setSubscriptionByEmail,
+    listSubscribers,
     updateUserPreferences,
     saveMatchProfile,
     getMatchProfile,

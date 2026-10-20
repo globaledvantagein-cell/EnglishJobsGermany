@@ -6,8 +6,11 @@ import {
     workplaceLabel,
 } from '../components.js';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../../../core/categorize.js';
+import { SITE_URL } from '../../../env.js';
 
-const BASE_URL = process.env.FRONTEND_ORIGIN || 'https://englishjobsgermany.com';
+// Links in emails must point at the public site. FRONTEND_ORIGIN is a CORS
+// value and is localhost on a dev machine, which broke links in mail sent from one.
+const BASE_URL = SITE_URL;
 
 export function renderText({ firstName, picked, shownTotal, categoryCount, unsubscribeUrl, totalAvailable }) {
     const lines = [];

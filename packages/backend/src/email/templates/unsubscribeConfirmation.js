@@ -5,8 +5,11 @@
  * Returns { subject, html, text }
  */
 import { escapeHtml, renderHeaderBanner } from './components.js';
+import { SITE_URL } from '../../env.js';
 
-const BASE_URL = process.env.FRONTEND_ORIGIN || 'https://englishjobsgermany.com';
+// Links in emails must point at the public site. FRONTEND_ORIGIN is a CORS
+// value and is localhost on a dev machine, which broke links in mail sent from one.
+const BASE_URL = SITE_URL;
 
 /**
  * @param {Object} args

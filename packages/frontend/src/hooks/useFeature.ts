@@ -24,7 +24,7 @@ export type FeatureKey =
   | 'savedJobs' | 'applyTracking' | 'remoteJobs' | 'searchAutocomplete'
   | 'feedbackWidget'
   | 'cronValidator'
-  | 'adminMaintenance';
+  | 'adminMaintenance' | 'adminSubscribers';
 
 const POLL_MS = 60_000;
 

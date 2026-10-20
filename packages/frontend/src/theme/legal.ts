@@ -79,11 +79,22 @@ export const LEGAL_CONTENT: Record<LegalTab, { title: string; intro: string; sec
         links: ['https://policies.google.com/privacy'],
       },
       {
+        heading: 'PostHog',
+        level: 'subsection',
+        paragraphs: [
+          'We use PostHog, a product analytics service provided by PostHog Inc., with data stored in the EU (Frankfurt).',
+          'PostHog helps us understand which pages and jobs are viewed, how long pages are read and which buttons are used, including session recordings, so we can find where the site is hard to use.',
+          "More information about PostHog's privacy practices can be found here:",
+        ],
+        links: ['https://posthog.com/privacy'],
+      },
+      {
         heading: 'Microsoft Clarity',
         level: 'subsection',
         paragraphs: [
           'We use Microsoft Clarity to analyze how users interact with the website.',
           'Clarity helps us understand user behavior through features such as heatmaps and session recordings so we can improve usability and platform design.',
+          'Google Analytics, PostHog and Microsoft Clarity are only loaded after you accept analytics cookies, and you can withdraw that consent at any time under “Cookie settings” in the footer.',
           "More information about Microsoft's privacy practices can be found here:",
         ],
         links: ['https://privacy.microsoft.com'],

@@ -3,7 +3,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { apiPost, fetchUsageStats, clearUsageCache, STORAGE_KEY_TOKEN, STORAGE_KEY_USER } from '../utils/jobApi';
-import { identifyUser, resetAnalytics } from '../utils/analytics';
+import { identifyUser, resetAnalytics, track } from '../utils/analytics';
+import { setInternalDevice } from '../utils/internalTraffic';
+import { stopTracking } from '../utils/tracking';
 import type { UsageStats } from '../types';
 
 interface User {
@@ -88,12 +90,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     acceptedTerms: boolean,
     extraBody: Record<string, unknown> = {},
   ) => {
-    const res = await apiPost<{ token: string; user: User; existing?: boolean }>('/api/auth/google', {
+    const res = await apiPost<{ token: string; user: User; existing?: boolean; isNewUser?: boolean }>('/api/auth/google', {
       credential,
       acceptedTerms,
       ...extraBody,
     }, { noAuth: true });
     login(res.token, res.user);
+    if (res.isNewUser) track('signed_up', { method: 'google' });
     return { existing: res.existing };
   }, [login]);
 
@@ -117,8 +120,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Identify the user to PostHog on login / token-restore. Re-runs when usage
   // resolves so isPremium is kept current as a person property.
+  // An admin's device is ours: mark it internal and stop every tracker, so
+  // our testing never reaches GA, PostHog or Clarity (utils/internalTraffic.ts).
   useEffect(() => {
     if (!user) return;
+    if (user.role === 'admin') {
+      setInternalDevice(true);
+      stopTracking();
+      return;
+    }
     identifyUser(user.id, {
       email: user.email,
       role: user.role,

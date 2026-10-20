@@ -7,8 +7,11 @@
 import { escapeHtml, renderHeaderBanner, renderFooter } from './components.js';
 import { buildUnsubscribeUrl } from '../unsubscribe.js';
 import { CATEGORY_LABELS } from '../../core/categorize.js';
+import { SITE_URL } from '../../env.js';
 
-const BASE_URL = process.env.FRONTEND_ORIGIN || 'https://englishjobsgermany.com';
+// Links in emails must point at the public site. FRONTEND_ORIGIN is a CORS
+// value and is localhost on a dev machine, which broke links in mail sent from one.
+const BASE_URL = SITE_URL;
 
 /**
  * @param {Object} args
@@ -18,7 +21,7 @@ const BASE_URL = process.env.FRONTEND_ORIGIN || 'https://englishjobsgermany.com'
  */
 export function renderSubscriptionConfirmation({ name, email, categories = [] }) {
     const firstName = capitalizeFirst((name || 'there').split(' ')[0]);
-    const unsubscribeUrl = buildUnsubscribeUrl(email, BASE_URL);
+    const unsubscribeUrl = buildUnsubscribeUrl(email);
 
     const subject = `You're subscribed — weekly job alerts activated`;
 

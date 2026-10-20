@@ -9,11 +9,15 @@ import posthog from 'posthog-js';
 /** True once PostHog was started (after consent) and capture isn't opted out. */
 const isActive = () => typeof window !== 'undefined' && posthog.__loaded && !posthog.has_opted_out_capturing();
 
-/** Capture a custom event. No-ops on the server or without analytics consent. */
-export function track(event: string, properties?: Record<string, unknown>): void {
+/**
+ * Capture a custom event. No-ops on the server or without analytics consent.
+ * `beacon` sends with navigator.sendBeacon, for events fired as the page is
+ * being left (a normal request can be cancelled by the unload).
+ */
+export function track(event: string, properties?: Record<string, unknown>, opts?: { beacon?: boolean }): void {
   if (!isActive()) return;
   try {
-    posthog.capture(event, properties);
+    posthog.capture(event, properties, opts?.beacon ? { transport: 'sendBeacon' } : undefined);
   } catch {
     /* analytics must never throw into product code */
   }

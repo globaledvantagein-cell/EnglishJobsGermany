@@ -1,9 +1,10 @@
 // ─── Admin maintenance tasks ─────────────────────────────────────────────────
 //
-// Data repairs an admin starts with a button on /admin/health. Click-only by
-// design: nothing here is scheduled, and nothing starts on boot.
+// Jobs an admin starts with a button in the Maintenance panel on /admin.
+// Click-only by design: nothing here is scheduled, and nothing starts on boot.
+// (The scraper also has its own 06:00 cron; the button just runs it now.)
 //
-// One task at a time (both are heavy on the database), progress kept in memory
+// One task at a time (all are heavy on the database), progress kept in memory
 // for the panel to poll, and every finished run recorded in maintenanceRuns
 // (TTL 30 days) so the last result survives a page reload.
 //
@@ -13,6 +14,7 @@ import { connectToDb } from '../db/connection.js';
 import { refreshJobsCache, refreshRemoteJobsCache } from '../cache/index.js';
 import { recomputeFilters } from './recomputeFilters.js';
 import { fillAiData } from './fillAiData.js';
+import { runScraper, isScraperRunning } from '../cron/runScraper.js';
 
 const HISTORY_DAYS = 30;
 let indexReady = false;
@@ -28,6 +30,15 @@ async function runsCollection() {
 }
 
 export const MAINTENANCE_TASKS = {
+    'run-scraper': {
+        label: 'Run scraper now',
+        description: 'Scrapes every connected ATS, company board and feed now instead of waiting for the 06:00 run. New jobs go through the usual AI check. Takes a while.',
+        // The 06:00 cron may already be scraping; a second run would only no-op.
+        blockedReason: () => (isScraperRunning() ? 'The scraper is already running (daily 06:00 run).' : null),
+        async run(setProgress) {
+            return runScraper({ onProgress: (site, done, total) => setProgress(site, done, total) });
+        },
+    },
     'fill-ai-data': {
         label: 'Fill missing AI data',
         description: 'Runs the AI on jobs it never read (workplace, visa, relocation, salary) and re-categorizes jobs stuck in "Other / General Business".',
@@ -67,6 +78,8 @@ export function startMaintenanceTask(key, { startedBy = null } = {}) {
     const task = MAINTENANCE_TASKS[key];
     if (!task) throw Object.assign(new Error('Unknown maintenance task'), { status: 404 });
     if (status.running) throw Object.assign(new Error('Another maintenance task is running'), { status: 409 });
+    const blocked = task.blockedReason?.();
+    if (blocked) throw Object.assign(new Error(blocked), { status: 409 });
 
     Object.assign(status, { running: true, task: key, startedAt: new Date(), stage: 'Starting', done: 0, total: 0 });
     const setProgress = (stage, done, total) => Object.assign(status, { stage, done, total });
@@ -77,8 +90,8 @@ export function startMaintenanceTask(key, { startedBy = null } = {}) {
         try {
             result = await task.run(setProgress);
             ok = result?.ok !== false;
-            // Both tasks change filter/category values; reload so the public
-            // lists and facet counts show them right away.
+            // Every task changes jobs or their filter values; reload so the
+            // public lists and facet counts show them right away.
             await refreshJobsCache().catch(err => console.warn('[maintenance] jobs cache refresh failed:', err.message));
             await refreshRemoteJobsCache().catch(err => console.warn('[maintenance] remote cache refresh failed:', err.message));
         } catch (error) {

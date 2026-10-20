@@ -642,7 +642,21 @@ a.adm-kpi:hover { background: var(--adm-sunken); }
 /* Phone: the two buttons wrap under the title instead of squeezing it. */
 @media (max-width: 900px) { .adm-panel-head { flex-wrap: wrap; row-gap: 4px; height: auto; min-height: 34px; padding-block: 5px; } }
 
-/* ── Data maintenance rows (MaintenancePanel) ── */
-.adm-maint-row { display: flex; align-items: center; gap: 10px; }
-.adm-maint-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-.adm-maint-text .adm-linkcheck-bar { margin-top: 4px; }
+/* ── Background maintenance rows (MaintenanceTasks) ── */
+.adm-grow > .adm-linkcheck-bar { margin-top: 4px; }
+
+/* ── AI verdicts (AdminAiVerdicts): KPIs + histogram side by side, stacked on phones ── */
+.adm-verdicts-head {
+  display: grid; gap: var(--adm-gap); grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr);
+  padding: var(--adm-pad); border-bottom: 1px solid var(--adm-line);
+}
+.adm-verdicts-domain { width: 170px; }
+@media (max-width: 900px) {
+  .adm-verdicts-head { grid-template-columns: minmax(0, 1fr); }
+  .adm-verdicts-head .adm-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adm-verdicts-head .adm-kpi:nth-child(2n) { border-right: none; }
+  .adm-verdicts-head .adm-kpi:nth-child(-n+2) { border-bottom: 1px solid var(--adm-line); }
+  /* The verdict segment (with counts) gets its own row; it scrolls rather than overflowing. */
+  .adm-toolbar .adm-seg { max-width: 100%; overflow-x: auto; }
+  .adm-verdicts-domain { width: auto; flex: 1 1 140px; }
+}

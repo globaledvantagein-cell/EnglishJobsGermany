@@ -1,15 +1,16 @@
 // Cookie/analytics consent.
 //
-// Nothing non-essential runs until the visitor accepts: Google Analytics and
-// PostHog (including session recordings) are only loaded by applyConsent
-// ('accepted'). "Only necessary" — or no answer yet — means neither is loaded.
+// Nothing non-essential runs until the visitor accepts: Google Analytics,
+// PostHog and Microsoft Clarity (the last two record sessions) are only loaded
+// by applyConsent('accepted'). "Only necessary" — or no answer yet — means
+// none is loaded.
 // The choice is stored per device; the footer "Cookie settings" link reopens
 // the banner to change it, and withdrawing stops tracking immediately.
 //
 // The loaders live in utils/tracking.ts. components/TrackingInit.tsx applies a
 // stored choice on page load; components/CookieConsent.tsx asks for one.
 
-import { startGoogleAnalytics, startPostHog, stopTracking } from './tracking';
+import { startClarity, startGoogleAnalytics, startPostHog, stopTracking } from './tracking';
 
 /** Bump this when the cookie policy changes to re-prompt everyone once. */
 // v2: tracking became consent-gated, so earlier answers (which changed
@@ -58,6 +59,7 @@ export function applyConsent(choice: ConsentChoice): void {
   if (choice === 'accepted') {
     startPostHog();
     startGoogleAnalytics();
+    startClarity();
   } else {
     stopTracking();
   }

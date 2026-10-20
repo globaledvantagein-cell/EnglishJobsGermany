@@ -24,8 +24,15 @@ const SEND_RATE_PER_SECOND = Number(process.env.RESEND_SEND_RATE_PER_SECOND) || 
  * @param {string} [msg.unsubscribeUrl] - if provided, adds List-Unsubscribe headers
  * @returns {Promise<{ ok: boolean, messageId?: string, error?: string }>}
  */
-export async function sendEmail({ to, subject, html, text }) {
+export async function sendEmail({ to, subject, html, text, unsubscribeUrl }) {
     const resend = getResendClient();
+
+    // RFC 8058 one-click unsubscribe: Gmail/Yahoo show their own "Unsubscribe"
+    // button and POST to this URL (handled by POST /api/auth/unsubscribe).
+    // Required by both for bulk senders since 2024.
+    const headers = unsubscribeUrl
+        ? { 'List-Unsubscribe': `<${unsubscribeUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' }
+        : undefined;
 
     try {
         const { data, error } = await resend.emails.send({
@@ -35,6 +42,7 @@ export async function sendEmail({ to, subject, html, text }) {
             subject,
             html,
             text,
+            ...(headers && { headers }),
         });
 
         if (error) {

@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, ArrowRight } from 'lucide-react';
 import { useNavigate, useSearchParams } from '@/compat/router';
 import AdminUsersGrowth from './AdminUsersGrowth';
+import MaintenanceTasks from '../../components/admin/MaintenanceTasks';
 import { apiGet, apiPost } from '../../utils/jobApi';
 import { useAdminUi } from '../../components/admin/AdminUiContext';
 import { useAdminCounts } from '../../components/admin/AdminShell';
@@ -41,7 +42,12 @@ interface PremiumTotals { totals: { activePremiumUsers: number; totalUsers: numb
 
 const HEALTH_TONE: Record<string, Tone> = { operational: 'ok', degraded: 'warn', down: 'bad', ok: 'ok', warn: 'warn', fail: 'bad' };
 
-/** Maintenance endpoints. Each is a one-off batch job over the whole jobs collection. */
+/**
+ * One-shot maintenance endpoints (the request waits for the result). The
+ * long-running background tasks — Fill missing AI data, Recompute filters —
+ * render above these, from MaintenanceTasks. "Backfill experience" was dropped
+ * here: Recompute filters re-derives experience and workplace for every job.
+ */
 const MAINTENANCE: Array<{
   key: string; label: string; detail: string; endpoint: string; confirm: string;
   summarize: (r: Record<string, number | string>) => string;
@@ -61,14 +67,6 @@ const MAINTENANCE: Array<{
     endpoint: '/api/jobs/admin/clean-descriptions',
     confirm: 'Strip any remaining HTML from all job descriptions?',
     summarize: r => `Cleaned ${r.cleaned} of ${r.total} · ${r.alreadyClean} already clean`,
-  },
-  {
-    key: 'experience',
-    label: 'Backfill experience',
-    detail: 'Fill experience level + workplace type on older jobs.',
-    endpoint: '/api/jobs/admin/backfill-experience',
-    confirm: 'Backfill experience levels and workplace type for existing jobs?',
-    summarize: r => `Jobs ${r.updated}/${r.total} · logs ${r.logsUpdated}/${r.logsTotal}`,
   },
   {
     key: 'salaries',
@@ -287,7 +285,8 @@ function OperationsOverview({ tabs }: { tabs: React.ReactNode }) {
             </div>
           </Panel>
 
-          <Panel title="Maintenance" meta="batch jobs over the whole collection" flush>
+          <Panel title="Maintenance" meta="runs only when you click" flush>
+            <MaintenanceTasks />
             {MAINTENANCE.map(task => (
               <div key={task.key} className="adm-row" style={{ padding: '8px 10px', borderBottom: '1px solid var(--adm-line)', alignItems: 'flex-start' }}>
                 <div className="adm-grow">

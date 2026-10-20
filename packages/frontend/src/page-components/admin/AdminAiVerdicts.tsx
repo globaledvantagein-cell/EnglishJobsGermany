@@ -73,16 +73,16 @@ export default function AdminAiVerdicts() {
 
   const columns: Column<Verdict>[] = [
     {
-      key: 'verdict', header: 'Verdict', width: 148,
+      key: 'verdict', header: 'Verdict', width: 132,
       render: r => r.germanRequired ? <Pill tone="bad">German required</Pill> : <Pill tone="ok">English OK</Pill>,
       sortValue: r => (r.germanRequired ? 1 : 0),
     },
-    { key: 'conf', header: 'Confidence', width: 104, align: 'right', render: r => <Meter value={r.confidence} />, sortValue: r => normalizeConfidence(r.confidence) },
-    { key: 'domain', header: 'Domain', width: 120, render: r => r.domain || '—', sortValue: r => r.domain ?? '' },
-    { key: 'sub', header: 'Sub-domain', render: r => r.subDomain || '—', title: r => r.subDomain, sortValue: r => r.subDomain ?? '' },
+    { key: 'conf', header: 'Conf.', width: 84, align: 'right', render: r => <Meter value={r.confidence} />, sortValue: r => normalizeConfidence(r.confidence) },
+    { key: 'domain', header: 'Domain', render: r => r.domain || '—', title: r => r.domain, sortValue: r => r.domain ?? '' },
+    { key: 'sub', header: 'Sub-domain', width: '22%', hideOnSmall: true, render: r => r.subDomain || '—', title: r => r.subDomain, sortValue: r => r.subDomain ?? '' },
     { key: 'fp', header: 'Fingerprint', width: '30%', hideOnSmall: true, render: r => <span className="adm-mono adm-muted">{r.fingerprint}</span>, title: r => r.fingerprint },
     {
-      key: 'age', header: 'Cached', width: 64, align: 'right',
+      key: 'age', header: 'Cached', width: 56, align: 'right',
       render: r => <span className="adm-muted" title={r.createdAt}>{fmtAge(r.createdAt)}</span>,
       sortValue: r => -new Date(r.createdAt).getTime(),
     },
@@ -95,7 +95,7 @@ export default function AdminAiVerdicts() {
       actions={<Btn onClick={load} loading={loading && rows.length > 0}><RefreshCw size={13} />Refresh</Btn>}
       flush
     >
-      <div style={{ padding: 'var(--adm-pad)', borderBottom: '1px solid var(--adm-line)', display: 'grid', gap: 'var(--adm-gap)', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(260px, 1fr)' }}>
+      <div className="adm-verdicts-head">
         <Kpis
           loading={loading && rows.length === 0}
           items={[
@@ -138,7 +138,7 @@ export default function AdminAiVerdicts() {
             { value: 'german', label: 'German required', count: stats.german },
           ]}
         />
-        <select className="adm-select" style={{ width: 170 }} value={domain} onChange={e => setDomain(e.target.value)} aria-label="Domain">
+        <select className="adm-select adm-verdicts-domain" value={domain} onChange={e => setDomain(e.target.value)} aria-label="Domain">
           <option value="">All domains</option>
           {domains.map(d => <option key={d} value={d}>{d}</option>)}
         </select>

@@ -101,7 +101,8 @@ down. SSR always renders as ON, so SEO HTML and hydration never change.
 | Jobs | `applyTracking` | `apply-click, confirm-applied, applied, applied-ids` | Apply link still works; tracking and toast are off |
 | Jobs | `remoteJobs` | `/api/remote-jobs*` | `RemoteDashboard`, `RemoteJobSharePage` → paused |
 | Jobs | `searchAutocomplete` | `GET /api/(jobs\|remote-jobs)/autocomplete` | `SearchWithGhost` shows no suggestions |
-| Admin tools | `adminMaintenance` | `/api/admin/maintenance*` → 503 | `MaintenancePanel` ("Fill missing AI data" / "Recompute filters" on /admin/health) hidden |
+| Admin tools | `adminMaintenance` | `/api/admin/maintenance*` → 503 | `MaintenanceTasks` ("Run scraper now" / "Fill missing AI data" / "Recompute filters" in the Maintenance panel on /admin) hidden. The 06:00 scraper cron is `cronScraper` |
+| Admin tools | `adminSubscribers` | `/api/admin/subscribers*` → 503 | `SubscribersPanel` (/admin → Users & growth) hidden. The public `/api/auth/unsubscribe` link is never gated |
 | Admin tools | `adminAiReanalysis` | `POST /api/jobs/admin/reanalyze*, /:id/analyze` | admin buttons get the 503 message |
 | Content | `feedbackWidget` | `POST /api/feedback` | `FeedbackWidget` hidden |
 | Background | `cronScraper` / `cronWeeklyDigest` / `cronWeeklyReset` / `cronWhatsApp` | cron skipped | — |
