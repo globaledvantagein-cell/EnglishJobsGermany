@@ -5,7 +5,7 @@
  * + the mobile filter bottom sheet. Renders the shared filter dropdowns
  * from ./filters/jobFilterSelects.
  */
-import { createPortal } from 'react-dom';
+import MobileFilterPanel from './filters/MobileFilterPanel';
 import { useState, useEffect, useRef } from 'react';
 import { Search, SlidersHorizontal, X, Crown } from 'lucide-react';
 import { Input } from './ui';
@@ -388,56 +388,26 @@ export function MobileFilterSheet({
   const toggleProps = { filters, setFilters, facetCounts, ...premiumProps };
   const sectionLabelStyle = { fontWeight: 600, fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginTop: 4, marginBottom: 2 };
 
-  // Portaled to <body>: rendered in place, a parent's stacking context capped
-  // the sheet below the cookie banner, which then covered its lower half.
-  return createPortal(
-    <div className="m-sheet" role="dialog" aria-modal="true" aria-label="Filters">
-      <div className="m-sheet-backdrop" onClick={onClose} />
-      <div className="m-sheet-panel">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>Filters</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}>
-            <X size={18} />
-          </button>
-        </div>
-        <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={sectionLabelStyle}>Filter by</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <FilterSelects {...selectsProps} widthOverride="100%" />
-          </div>
-
-          <div style={{ ...sectionLabelStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
-            More filters {!isPremium && <PremiumBadge />}
-          </div>
-          {/* 1-column: the attribute labels are long and cramp in 2 columns */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <AttributeSelects {...dropdownProps} widthOverride="100%" />
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <ToggleChips {...toggleProps} />
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <SalaryRangeInputs {...toggleProps} stretch />
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-          {hasActiveFilters && (
-            <button
-              onClick={() => { clearFilters(); onClose(); }}
-              style={{ flex: 1, height: 46, borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.9rem', cursor: 'pointer' }}
-            >
-              Clear all
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            style={{ flex: 2, height: 46, borderRadius: 10, border: 'none', background: 'var(--acid)', color: '#000', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer' }}
-          >
-            Show {filteredCount.toLocaleString()} {filteredCount === 1 ? 'job' : 'jobs'}
-          </button>
-        </div>
+  return (
+    <MobileFilterPanel matchCount={filteredCount} hasActiveFilters={hasActiveFilters} onClear={clearFilters} onClose={onClose}>
+      <div style={sectionLabelStyle}>Filter by</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <FilterSelects {...selectsProps} widthOverride="100%" />
       </div>
-    </div>,
-    document.body,
+
+      <div style={{ ...sectionLabelStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
+        More filters {!isPremium && <PremiumBadge />}
+      </div>
+      {/* 1-column: the attribute labels are long and cramp in 2 columns */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <AttributeSelects {...dropdownProps} widthOverride="100%" />
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <ToggleChips {...toggleProps} />
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <SalaryRangeInputs {...toggleProps} stretch />
+      </div>
+    </MobileFilterPanel>
   );
 }
