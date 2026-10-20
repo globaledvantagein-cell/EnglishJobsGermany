@@ -34,6 +34,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { usePageCover } from '../../hooks/usePageCover';
 
 interface Props {
   matchCount: number;
@@ -44,16 +45,14 @@ interface Props {
 }
 
 export default function MobileFilterPanel({ matchCount, hasActiveFilters, onClear, onClose, children }: Props) {
-  // Lock page scroll behind the view and close on Escape (hardware keyboards).
+  // Lock page scroll. Hiding the page under iOS Safari's glass toolbar is CSS
+  // ("Page cover for overlays on iOS Safari" in app/globals.css).
+  usePageCover(true);
+  // Close on Escape (hardware keyboards).
   useEffect(() => {
-    const { overflow } = document.body.style;
-    document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
-    return () => {
-      document.body.style.overflow = overflow;
-      window.removeEventListener('keydown', onKey);
-    };
+    return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
   return createPortal(

@@ -262,7 +262,7 @@ export default function UpgradeModal({ gateReason, usage, onClose }: Props) {
     : { position: 'relative', width: '100%', maxWidth: 440, borderRadius: 16, padding: 32, maxHeight: '90vh', overflowY: 'auto' };
 
   return (
-    <div
+    <div className="ui-modal"
       role="dialog"
       aria-modal="true"
       aria-label={copy.headline}

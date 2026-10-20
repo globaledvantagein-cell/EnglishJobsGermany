@@ -12,7 +12,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, ChevronRight, ExternalLink, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Rows3, Rows4, Sun } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Rows3, Rows4, Sun, X } from 'lucide-react';
 import { Link } from '@/compat/router';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -138,6 +138,12 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                 <span className="adm-brand-role">Admin console</span>
               </span>
             </Link>
+            {/* Phones: the open sidebar is full screen, so it carries its own close. */}
+            {narrowOpen && (
+              <button type="button" className="adm-sidebar-close" onClick={() => setNarrowOpen(false)} aria-label="Close menu">
+                <X size={18} />
+              </button>
+            )}
 
             <nav className="adm-nav" ref={navRef}>
               {ADMIN_NAV.map(group => {

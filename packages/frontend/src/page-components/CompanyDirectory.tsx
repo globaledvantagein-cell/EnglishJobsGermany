@@ -229,7 +229,7 @@ function EditCompanyModal({
   };
 
   return (
-    <div
+    <div className="ui-modal"
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 100,

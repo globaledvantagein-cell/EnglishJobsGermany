@@ -3008,3 +3008,34 @@ html { background: var(--paper); }
   .bottom-sheet { padding-bottom: calc(env(safe-area-inset-bottom) + 72px); }
 }
 
+/* ── Page cover for overlays on iOS Safari ────────────────────────────────
+   iOS 26 Safari's floating toolbar is glass over the PAGE, and Safari never
+   draws position:fixed layers in that strip — so under any open overlay the
+   page's job cards showed through the glass. While an overlay is open the
+   whole page is hidden (visibility is inherited and the overlay switches
+   itself back on, so this works for nested and portaled overlays alike) and
+   the root background takes the colour of what touches the bottom edge, so
+   the strip under the glass is solid and matches. visibility (not display)
+   keeps the scroll position. iOS only: other browsers draw their own chrome.
+   Overlays: .m-filters, .nav-drawer, .bottom-sheet (option pickers), the
+   admin sidebar / drawers / dialogs, and public modals marked .ui-modal. */
+@supports (-webkit-touch-callout: none) {
+  html:has(.m-filters), html:has(.m-filters) body,
+  html:has(.adm-drawer-root), html:has(.adm-drawer-root) body { background: var(--bg-base); }
+  html:has(.nav-drawer), html:has(.nav-drawer) body,
+  html:has(.adm-shell[data-narrow-open='true']), html:has(.adm-shell[data-narrow-open='true']) body,
+  html:has(.bottom-sheet), html:has(.bottom-sheet) body { background: var(--bg-surface); }
+  /* centred dialogs: the strip matches the dimmed page */
+  html:has(.adm-overlay), html:has(.adm-overlay) body,
+  html:has(.ui-modal), html:has(.ui-modal) body { background: color-mix(in srgb, var(--bg-base) 55%, #000); }
+
+  html:is(:has(.m-filters), :has(.nav-drawer), :has(.bottom-sheet), :has(.adm-shell[data-narrow-open='true']),
+          :has(.adm-drawer-root), :has(.adm-overlay), :has(.ui-modal)) body { visibility: hidden; }
+  html:is(:has(.m-filters), :has(.nav-drawer), :has(.bottom-sheet), :has(.adm-shell[data-narrow-open='true']),
+          :has(.adm-drawer-root), :has(.adm-overlay), :has(.ui-modal)) body::before,
+  html:is(:has(.m-filters), :has(.nav-drawer), :has(.bottom-sheet), :has(.adm-shell[data-narrow-open='true']),
+          :has(.adm-drawer-root), :has(.adm-overlay), :has(.ui-modal)) body::after { display: none; }
+  .m-filters, .nav-drawer, .nav-drawer-overlay, .bottom-sheet, .bottom-sheet-overlay,
+  .adm-shell[data-narrow-open='true'] .adm-sidebar, .adm-drawer-root, .adm-overlay, .ui-modal { visibility: visible; }
+}
+

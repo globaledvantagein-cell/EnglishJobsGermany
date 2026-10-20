@@ -6,6 +6,7 @@ import { Badge, Button } from '../ui';
 import { USER_MENU_LINKS } from './navLinks';
 import BrandLogo from '../BrandLogo';
 import { createPortal } from 'react-dom';
+import { usePageCover } from '../../hooks/usePageCover';
 
 interface User {
   name: string;
@@ -50,6 +51,8 @@ function DrawerLink({
 export default function MobileDrawer({
   open, closing, links, isActive, isAuthenticated, isAdmin, user, onClose, onLogout,
 }: Props) {
+  // Lock page scroll while the full-screen phone menu is open.
+  usePageCover(open);
   if (!open) return null;
 
   // Portaled to <body>: the site header uses backdrop-filter, which makes it

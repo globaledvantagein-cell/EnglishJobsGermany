@@ -596,6 +596,28 @@ a.adm-kpi:hover { background: var(--adm-sunken); }
     display: block; position: fixed; inset: 0; z-index: 69; background: rgba(15, 23, 42, 0.28);
   }
 }
+.adm-sidebar-close { display: none; }
+@media (max-width: 640px) {
+  /* Phones: the open sidebar is a full-screen solid layer (like the public
+     menu), so nothing of the page shows under iOS Safari's glass toolbar
+     (see "Page cover for overlays" in app/globals.css). It has its own close. */
+  .adm-shell[data-narrow-open='true'] .adm-sidebar { width: 100%; box-shadow: none; }
+  .adm-shell[data-narrow-open='true'] .adm-nav-link { height: 44px; font-size: 14px; }
+  .adm-shell[data-narrow-open='true'] .adm-brand { padding-right: 52px; }
+  .adm-sidebar-close {
+    display: inline-flex; align-items: center; justify-content: center;
+    position: absolute; top: calc(6px + env(safe-area-inset-top)); right: 8px; width: 44px; height: 44px;
+    border: none; background: none; color: var(--adm-ink-2); cursor: pointer;
+  }
+  .adm-sidebar { position: relative; }
+  /* Drawers (job/user details) fill the phone screen too. */
+  .adm-drawer { width: 100% !important; border-left: none; box-shadow: none; }
+}
+@supports (-webkit-touch-callout: none) {
+  /* The sidebar's last links scroll clear of Safari's toolbar. */
+  .adm-shell[data-narrow-open='true'] .adm-sidebar { padding-bottom: calc(env(safe-area-inset-bottom) + 72px); }
+  .adm-detail-scroll { padding-bottom: calc(env(safe-area-inset-bottom) + 72px); }
+}
 
 /* Closed nav groups hide their links — except in the icon rail (collapsed or
    narrow), where labels are hidden and every icon must stay reachable. */

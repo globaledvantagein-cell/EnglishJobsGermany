@@ -50,7 +50,7 @@ function ConfirmDialog({ onClose, onConfirm, deleting, error }: {
   }, [onClose, deleting]);
 
   return (
-    <div
+    <div className="ui-modal"
       onClick={() => { if (!deleting) onClose(); }}
       role="dialog"
       aria-modal="true"
