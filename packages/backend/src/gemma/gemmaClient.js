@@ -18,6 +18,8 @@ const GEMMA_CASCADE = ['gemma-4-26b-a4b-it', 'gemma-4-31b-it'];
 
 /** Error code marking a permanent (not transient) "no budget left" failure. */
 const MODEL_EXHAUSTED = 'MODEL_EXHAUSTED';
+/** Error code: the model kept failing with 5xx/timeouts after its retry. */
+const MODEL_UNAVAILABLE = 'MODEL_UNAVAILABLE';
 /** Error code: Google rejected every configured key (invalid/blocked). */
 export const KEYS_REJECTED = 'KEYS_REJECTED';
 
@@ -211,9 +213,9 @@ export async function callGemma(systemPrompt, userMessage, options = {}) {
             // Transient server error — retry exactly once after 2s.
             if (status === 500 || status === 503) {
                 if (hasRetriedServerError) {
-                    throw new Error(
-                        `[Gemma] Server error ${status} persisted after retry`
-                    );
+                    const err = new Error(`[Gemma] Server error ${status} persisted after retry`);
+                    err.code = MODEL_UNAVAILABLE;
+                    throw err;
                 }
                 hasRetriedServerError = true;
                 console.warn(`[Gemma] ${status} — retrying once after ${SERVER_ERROR_RETRY_MS}ms`);
@@ -256,8 +258,13 @@ export async function callGemmaWithCascade(systemPrompt, userMessage, options = 
         try {
             return await callGemma(systemPrompt, userMessage, { ...options, model });
         } catch (error) {
-            // Budget ran out mid-flight — drop a tier. Everything else is
-            // transient and belongs to the caller.
+            // Budget ran out mid-flight, or this model is down on Google's side
+            // (2026-10-20: 26B answered 500 on every key while 31B worked) —
+            // drop a tier. Everything else belongs to the caller.
+            if (error?.code === MODEL_UNAVAILABLE && GEMMA_CASCADE[i + 1]) {
+                console.warn(`[Gemma] Model ${model} unavailable (5xx), cascading to ${GEMMA_CASCADE[i + 1]}`);
+                continue;
+            }
             if (error?.code === MODEL_EXHAUSTED) {
                 const next = GEMMA_CASCADE[i + 1];
                 if (next) console.warn(`[Gemma] Model ${model} exhausted on all keys, cascading to ${next}`);
