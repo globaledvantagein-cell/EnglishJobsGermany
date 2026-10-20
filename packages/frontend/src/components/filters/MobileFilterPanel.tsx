@@ -1,23 +1,32 @@
 'use client';
 
 /**
- * Phone filter panel: slides in from the right, full height, over a dimmed
- * page. Shared by the German and remote job pages (DashboardFilterBar /
+ * Phone filters: a full-screen view (the Airbnb / LinkedIn mobile filter
+ * pattern). Shared by the German and remote job pages (DashboardFilterBar /
  * RemoteFilterBar), which pass their filter controls as children.
  *
  *   ┌──────────────────────────┐
- *   │ Filters        Clear   ✕ │  ← header: title + actions
- *   │ [   Show 2,710 jobs    ] │  ← the apply button lives at the TOP
- *   │ ──────────────────────── │
- *   │ Company / Category / …   │  ← scrolls
+ *   │ Filters                ✕ │  header (solid)
+ *   ├──────────────────────────┤
+ *   │ Company / Category / …   │  scrolls
  *   │ …                        │
- *   └──────────────────────────┘  runs to the screen edge, behind Safari
+ *   ├──────────────────────────┤
+ *   │ Clear all  [Show 2,710]  │  footer: its OWN position:fixed element
+ *   └──────────────────────────┘
  *
- * Why the button is at the top: on iOS 26 Safari's translucent floating
- * toolbar covers the bottom of the screen, so a bottom-pinned button needs an
- * empty strip under it to stay tappable. With the action in the header (the
- * iOS sheet pattern — "Done" at the top) the panel's bottom is just scrolling
- * content and can run behind the toolbar like iOS's own sheets.
+ * Why it is built this way (iOS 26 Safari, learned from the user's iPhone):
+ *  - Safari 26.0 never draws position:fixed content below its floating
+ *    toolbar (developer.apple.com/forums/thread/800798), so no layer can be
+ *    stretched behind it.
+ *  - Instead Safari tints the strip under the toolbar with the
+ *    background-color of a position:fixed element at the bottom edge — the
+ *    element's OWN background; absolute children are ignored. Our earlier
+ *    sheet/panel was an absolute child of a transparent fixed root, so Safari
+ *    showed the page through that strip. Here the footer is a fixed element
+ *    with a solid background, so the strip continues it (like Airbnb's
+ *    bottom bar).
+ *  - Full screen: no half-dimmed page left or right of a panel for the strip
+ *    to disagree with.
  *
  * Portaled to <body>: inside a page-wash, iOS Safari clips position:fixed
  * children (WebKit bug 160953).
@@ -35,7 +44,7 @@ interface Props {
 }
 
 export default function MobileFilterPanel({ matchCount, hasActiveFilters, onClear, onClose, children }: Props) {
-  // Lock page scroll behind the panel and close on Escape (hardware keyboards).
+  // Lock page scroll behind the view and close on Escape (hardware keyboards).
   useEffect(() => {
     const { overflow } = document.body.style;
     document.body.style.overflow = 'hidden';
@@ -48,25 +57,27 @@ export default function MobileFilterPanel({ matchCount, hasActiveFilters, onClea
   }, [onClose]);
 
   return createPortal(
-    <div className="m-sheet" role="dialog" aria-modal="true" aria-label="Filters">
-      <div className="m-sheet-backdrop" onClick={onClose} />
-      <aside className="m-panel">
-        <header className="m-panel-head">
-          <div className="m-panel-titlebar">
-            <span className="m-panel-title">Filters</span>
-            {hasActiveFilters && (
-              <button type="button" className="m-panel-clear" onClick={() => { onClear(); onClose(); }}>Clear all</button>
-            )}
-            <button type="button" className="m-panel-close" onClick={onClose} aria-label="Close filters">
-              <X size={18} />
-            </button>
-          </div>
-          <button type="button" className="m-panel-apply" onClick={onClose}>
-            Show {matchCount.toLocaleString()} {matchCount === 1 ? 'job' : 'jobs'}
-          </button>
-        </header>
-        <div className="m-panel-body">{children}</div>
-      </aside>
+    <div className="m-filters" role="dialog" aria-modal="true" aria-label="Filters">
+      <header className="m-filters-head">
+        <span className="m-filters-title">Filters</span>
+        <button type="button" className="m-filters-close" onClick={onClose} aria-label="Close filters">
+          <X size={20} />
+        </button>
+      </header>
+      <div className="m-filters-body">{children}</div>
+      <footer className="m-filters-foot">
+        <button
+          type="button"
+          className="m-filters-clear"
+          onClick={() => { onClear(); onClose(); }}
+          disabled={!hasActiveFilters}
+        >
+          Clear all
+        </button>
+        <button type="button" className="m-filters-apply" onClick={onClose}>
+          Show {matchCount.toLocaleString()} {matchCount === 1 ? 'job' : 'jobs'}
+        </button>
+      </footer>
     </div>,
     document.body,
   );
