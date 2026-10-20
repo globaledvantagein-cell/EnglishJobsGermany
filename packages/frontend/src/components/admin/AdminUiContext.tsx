@@ -69,6 +69,10 @@ export function AdminUiProvider({ children }: { children: ReactNode }) {
   return (
     <AdminUiContext.Provider value={{ toast, confirm }}>
       {children}
+      {/* Toasts and the dialog render outside the .adm shell, so this layer
+          re-establishes the admin tokens (--adm-panel, fonts…) for them;
+          without it the dialog had no background and its text sat on the page. */}
+      <div className="adm adm-layer">
 
       <div className="adm-toasts" role="status" aria-live="polite">
         {toasts.map(t => (
@@ -106,6 +110,7 @@ export function AdminUiProvider({ children }: { children: ReactNode }) {
           </div>
         </div>
       )}
+      </div>
     </AdminUiContext.Provider>
   );
 }

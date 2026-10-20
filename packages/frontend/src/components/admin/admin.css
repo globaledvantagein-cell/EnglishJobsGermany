@@ -429,6 +429,10 @@ a.adm-kpi:hover { background: var(--adm-sunken); }
 .adm-toast button:hover { background: rgba(255,255,255,0.26); }
 @keyframes adm-toast-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
 
+/* Layer for toasts + dialog (AdminUiContext): carries the .adm tokens but
+   draws no box of its own, so it can't cover or shift the page. */
+.adm.adm-layer { display: contents; }
+
 /* ── Dialog ────────────────────────────────────────────────────────────── */
 .adm-overlay {
   position: fixed; inset: 0; z-index: 95; background: rgba(10,10,10,0.38);
@@ -441,7 +445,7 @@ a.adm-kpi:hover { background: var(--adm-sunken); }
   overflow: hidden;
 }
 .adm-dialog-body { padding: 14px 16px; }
-.adm-dialog-body h2 { font-size: 14px; margin: 0 0 6px; }
+.adm-dialog-body h2 { font-size: 14px; font-weight: 650; margin: 0 0 6px; }
 .adm-dialog-body p { margin: 0; color: var(--adm-ink-2); font-size: 12.5px; }
 .adm-dialog-foot { display: flex; justify-content: flex-end; gap: 6px; padding: 10px 16px; border-top: 1px solid var(--adm-line); background: var(--adm-sunken); }
 @keyframes adm-fade { from { opacity: 0; } to { opacity: 1; } }
