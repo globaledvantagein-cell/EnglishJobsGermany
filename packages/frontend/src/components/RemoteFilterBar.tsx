@@ -15,6 +15,7 @@
  *   - no premium locking: every filter is free
  *   - no workplace select (all remote), no visa / relocation toggles
  */
+import { createPortal } from 'react-dom';
 import { useState, useEffect, useRef } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import FilterDropdown from './FilterDropdown';
@@ -519,7 +520,9 @@ export function RemoteMobileFilterSheet({
   const base = { filters, setFilters, openDropdown, setOpenDropdown };
   const sectionLabelStyle = { fontWeight: 600, fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginTop: 4, marginBottom: 2 };
 
-  return (
+  // Portaled to <body>: rendered in place, a parent's stacking context capped
+  // the sheet below the cookie banner, which then covered its lower half.
+  return createPortal(
     <div style={{ position: 'fixed', inset: 0, zIndex: 200 }}>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
       <div style={{
@@ -568,6 +571,7 @@ export function RemoteMobileFilterSheet({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -65,7 +65,11 @@ export default function CookieConsent() {
       role="region"
       aria-label="Cookie consent"
       style={{
-        position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 400,
+        // 150: above the page, header, job Apply bar (60) and mobile job view
+        // (100), but BELOW bottom sheets (200) and modals (300+) — at 400 it
+        // covered the open filter sheet, hiding its lower half and the
+        // "Show jobs" button for anyone who hadn't answered the banner yet.
+        position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 150,
         padding: '12px 16px calc(12px + env(safe-area-inset-bottom) + var(--chrome-inset-bottom, 0px))',
         display: 'flex', justifyContent: 'center',
         pointerEvents: 'none',

@@ -5,6 +5,7 @@
  * + the mobile filter bottom sheet. Renders the shared filter dropdowns
  * from ./filters/jobFilterSelects.
  */
+import { createPortal } from 'react-dom';
 import { useState, useEffect, useRef } from 'react';
 import { Search, SlidersHorizontal, X, Crown } from 'lucide-react';
 import { Input } from './ui';
@@ -387,7 +388,9 @@ export function MobileFilterSheet({
   const toggleProps = { filters, setFilters, facetCounts, ...premiumProps };
   const sectionLabelStyle = { fontWeight: 600, fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginTop: 4, marginBottom: 2 };
 
-  return (
+  // Portaled to <body>: rendered in place, a parent's stacking context capped
+  // the sheet below the cookie banner, which then covered its lower half.
+  return createPortal(
     <div style={{ position: 'fixed', inset: 0, zIndex: 200 }}>
       <div
         onClick={onClose}
@@ -442,6 +445,7 @@ export function MobileFilterSheet({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
