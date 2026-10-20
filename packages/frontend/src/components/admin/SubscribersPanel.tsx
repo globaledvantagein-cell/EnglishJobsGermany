@@ -17,7 +17,7 @@ import { apiGet, apiPost } from '../../utils/jobApi';
 import { withFeature } from '../FeatureGate';
 import { useAdminUi } from './AdminUiContext';
 import { DataTable, type Column } from './DataTable';
-import { Btn, Empty, Panel, Pill, SkeletonRows, errorText, fmtAge, fmtNumber } from './primitives';
+import { Btn, Dot, Empty, Panel, Pill, SkeletonRows, errorText, fmtAge, fmtNumber } from './primitives';
 
 interface Subscriber {
   _id: string; email: string; name?: string; isSubscribed?: boolean; createdAt?: string;
@@ -26,6 +26,7 @@ interface Subscriber {
 interface SubscribersResponse { users: Subscriber[]; totals: { subscribed: number; unsubscribed: number; total: number } }
 
 const SEARCH_DEBOUNCE_MS = 300;
+const PAGE_SIZE = 30;
 const SOURCE_LABEL: Record<string, string> = { link: 'email link', 'one-click': 'Gmail button', admin: 'admin' };
 
 function SubscribersPanel() {
@@ -34,10 +35,11 @@ function SubscribersPanel() {
   const [data, setData] = useState<SubscribersResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  const [limit, setLimit] = useState(PAGE_SIZE);
 
-  const load = useCallback(async (q: string) => {
+  const load = useCallback(async (q: string, max: number) => {
     try {
-      setData(await apiGet<SubscribersResponse>(`/api/admin/subscribers?q=${encodeURIComponent(q)}&limit=100`));
+      setData(await apiGet<SubscribersResponse>(`/api/admin/subscribers?q=${encodeURIComponent(q)}&limit=${max}`));
       setError(null);
     } catch (err) {
       setError(errorText(err));
@@ -45,9 +47,9 @@ function SubscribersPanel() {
   }, []);
 
   useEffect(() => {
-    const id = window.setTimeout(() => load(query), SEARCH_DEBOUNCE_MS);
+    const id = window.setTimeout(() => load(query, limit), SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(id);
-  }, [query, load]);
+  }, [query, limit, load]);
 
   const toggle = async (user: Subscriber) => {
     const next = !user.isSubscribed;
@@ -64,7 +66,7 @@ function SubscribersPanel() {
     try {
       await apiPost('/api/admin/subscribers/set', { email: user.email, isSubscribed: next });
       toast(`${user.email} ${next ? 'resubscribed' : 'unsubscribed'}`);
-      await load(query);
+      await load(query, limit);
     } catch (err) {
       toast(`Could not update ${user.email}: ${errorText(err)}`, { tone: 'bad' });
     } finally {
@@ -72,29 +74,41 @@ function SubscribersPanel() {
     }
   };
 
+  /** "mailed 2d ago" / "via email link · 3d ago" — the detail next to a status. */
+  const statusDetail = (u: Subscriber) => u.isSubscribed
+    ? (u.lastEmailSent ? `mailed ${fmtAge(u.lastEmailSent)} ago` : 'not mailed yet')
+    : (u.unsubscribedAt ? `${SOURCE_LABEL[u.unsubscribeSource || ''] || 'earlier'} · ${fmtAge(u.unsubscribedAt)} ago` : '');
+
   const columns: Column<Subscriber>[] = [
     {
       key: 'email', header: 'Email',
       render: u => (
-        <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          <span className="adm-cell-strong" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</span>
-          {u.name && <span className="adm-muted" style={{ fontSize: 11.5 }}>{u.name}</span>}
+        <span className="adm-sub-who">
+          <span className="adm-cell-strong">{u.email}</span>
+          {/* Phones hide the Status column; its essentials ride under the email. */}
+          <span className="adm-muted adm-show-sm">
+            <Dot tone={u.isSubscribed ? 'ok' : 'neutral'} /> {u.isSubscribed ? 'Subscribed' : 'Unsubscribed'}{statusDetail(u) && ` · ${statusDetail(u)}`}
+          </span>
+          {u.name && <span className="adm-muted adm-hide-sm">{u.name}</span>}
         </span>
       ),
+      title: u => u.email,
       sortValue: u => u.email,
     },
     {
-      key: 'status', header: 'Status', width: 190,
-      render: u => u.isSubscribed
-        ? <span className="adm-row" style={{ gap: 6 }}><Pill tone="ok">Subscribed</Pill>{u.lastEmailSent && <span className="adm-muted" style={{ fontSize: 11.5 }}>mailed {fmtAge(u.lastEmailSent)} ago</span>}</span>
-        : <span className="adm-row" style={{ gap: 6 }}><Pill>Unsubscribed</Pill>{u.unsubscribedAt && <span className="adm-muted" style={{ fontSize: 11.5 }}>{SOURCE_LABEL[u.unsubscribeSource || ''] || 'earlier'} · {fmtAge(u.unsubscribedAt)} ago</span>}</span>,
+      key: 'status', header: 'Status', width: 210, hideOnSmall: true,
+      render: u => (
+        <span className="adm-row" style={{ gap: 6 }}>
+          {u.isSubscribed ? <Pill tone="ok">Subscribed</Pill> : <Pill>Unsubscribed</Pill>}
+          <span className="adm-muted" style={{ fontSize: 11.5 }}>{statusDetail(u)}</span>
+        </span>
+      ),
       sortValue: u => (u.isSubscribed ? 1 : 0),
     },
     {
-      key: 'action', header: '', width: 112, align: 'right',
+      key: 'action', header: '', width: 104, align: 'right',
       render: u => (
-        <Btn size="sm" variant={u.isSubscribed ? 'default' : 'primary'} loading={saving === u.email}
-          onClick={() => toggle(u)}>
+        <Btn size="sm" loading={saving === u.email} onClick={() => toggle(u)}>
           {u.isSubscribed ? 'Unsubscribe' : 'Resubscribe'}
         </Btn>
       ),
@@ -110,19 +124,22 @@ function SubscribersPanel() {
         <label className="adm-search">
           <Search size={13} />
           <input className="adm-input" type="search" placeholder="Search email or name" value={query}
-            onChange={e => setQuery(e.target.value)} aria-label="Search subscribers" />
+            onChange={e => { setQuery(e.target.value); setLimit(PAGE_SIZE); }} aria-label="Search subscribers" />
         </label>
       }
       flush
     >
       {error && <div className="adm-muted" style={{ padding: '8px 10px', fontSize: 12 }}>Could not load subscribers: {error}</div>}
-      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--adm-row) * 8 + 31px)' }}>
+      <div className="adm-rows-box">
         {!data && !error ? <SkeletonRows rows={6} cols={3} /> : (
           <DataTable
             rows={data?.users ?? []}
             columns={columns}
             rowKey={u => u._id}
             empty={<Empty title={query ? 'No match' : 'No users yet'} body={query ? `Nobody matches “${query}”.` : undefined} />}
+            footer={data && data.users.length >= limit
+              ? <Btn size="sm" variant="ghost" onClick={() => setLimit(n => n + PAGE_SIZE)}>Show {PAGE_SIZE} more</Btn>
+              : undefined}
           />
         )}
       </div>

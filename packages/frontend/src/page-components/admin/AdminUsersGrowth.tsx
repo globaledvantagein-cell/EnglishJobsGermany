@@ -208,6 +208,7 @@ export default function AdminUsersGrowth() {
 
       <div className="adm-grid adm-ug-row3">
         <Panel title={<span className="adm-row" style={{ gap: 6 }}>Weekly signup cohorts {estBadge}</span>} meta="share of each week's signups" flush>
+          <div className="adm-hscroll">
           <table className="adm-cohort">
             <thead>
               <tr>
@@ -231,10 +232,11 @@ export default function AdminUsersGrowth() {
               ))}
             </tbody>
           </table>
+          </div>
         </Panel>
 
         <Panel title="Going quiet" meta={`active before, silent 14d+ · ${data.goneQuiet.length} most recent`} flush>
-          <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--adm-row) * 8 + 31px)' }}>
+          <div className="adm-rows-box">
             <DataTable
               rows={data.goneQuiet}
               columns={quietColumns}

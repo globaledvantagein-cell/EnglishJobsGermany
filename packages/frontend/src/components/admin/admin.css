@@ -660,3 +660,58 @@ a.adm-kpi:hover { background: var(--adm-sunken); }
   .adm-toolbar .adm-seg { max-width: 100%; overflow-x: auto; }
   .adm-verdicts-domain { width: auto; flex: 1 1 140px; }
 }
+
+/* ── Phone layout ─────────────────────────────────────────────────────────
+   Evidence-led (REA capture of Plausible's public dashboard at 390px, plus
+   mobile-table guidance): the page scrolls naturally instead of nesting
+   fixed-height scroll boxes, KPIs and label/value facts sit in two columns,
+   and a table keeps a usable width and scrolls sideways with its first
+   (identifying) column pinned rather than squeezing a column to nothing. */
+
+/* Fixed-height list boxes: N rows on desktop, natural height on phones. */
+.adm-rows-box { display: flex; flex-direction: column; height: calc(var(--adm-row) * var(--rows, 8) + 31px); }
+
+/* Overview row 3 (review queue | maintenance) and Premium's small charts. */
+.adm-ov-row3 { grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr); }
+.adm-mini-charts { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+
+/* Wide custom tables (cohorts): scroll sideways inside the panel. */
+.adm-hscroll { overflow-x: auto; overscroll-behavior-x: contain; }
+
+/* Subscribers: email over a one-line status (status column hidden on phones). */
+.adm-table td:has(.adm-sub-who) { white-space: normal; padding-block: 5px; }
+.adm-sub-who { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
+.adm-sub-who > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
+.adm-sub-who > .adm-cell-strong { font-size: 12.5px; }
+.adm-cohort th, .adm-cohort td { white-space: nowrap; }
+
+@media (max-width: 900px) {
+  .adm-rows-box { height: auto; }
+  /* Flush pages (Premium, AI verdicts) lock the body to the viewport so only
+     their tables scroll; on a phone that leaves a few rows trapped under the
+     KPIs. Let the page scroll instead — except list/detail splits (Review,
+     Trash), which switch panes via data-detail-open and need the lock. */
+  .adm-page-body[data-flush='true']:not(:has(.adm-split[data-detail-open])) { display: block; overflow-y: auto; }
+  .adm-page-body[data-flush='true']:not(:has(.adm-split[data-detail-open])) .adm-table-wrap { overflow-y: visible; }
+  .adm-split:not([data-detail-open]) { display: block; }
+  .adm-ov-row3 { grid-template-columns: minmax(0, 1fr); }
+  .adm-table { min-width: var(--adm-table-min, 0); }
+  .adm-table-wrap { overscroll-behavior-x: contain; }
+  .adm-table td:first-child, .adm-table th:first-child { position: sticky; left: 0; box-shadow: 1px 0 0 var(--adm-line); }
+  .adm-table td:first-child { z-index: 1; background: var(--adm-panel); }
+  .adm-table th:first-child { z-index: 2; }
+  .adm-hscroll .adm-cohort { min-width: 520px; }
+  .adm-hscroll .adm-cohort th:first-child, .adm-hscroll .adm-cohort td:first-child {
+    position: sticky; left: 0; z-index: 1; background: var(--adm-panel); box-shadow: 1px 0 0 var(--adm-line);
+  }
+}
+
+@media (max-width: 640px) {
+  /* The icon rail costs ~15% of a phone's width; the topbar button opens the
+     full sidebar as an overlay (AdminShell narrowOpen), so hide the rail. */
+  .adm-shell { --adm-sidebar: 0px; }
+  .adm-shell:not([data-narrow-open='true']) .adm-sidebar { display: none; }
+  .adm-dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adm-dl dd { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .adm-mini-charts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

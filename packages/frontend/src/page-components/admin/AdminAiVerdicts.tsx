@@ -73,7 +73,7 @@ export default function AdminAiVerdicts() {
 
   const columns: Column<Verdict>[] = [
     {
-      key: 'verdict', header: 'Verdict', width: 132,
+      key: 'verdict', header: 'Verdict', width: 140,
       render: r => r.germanRequired ? <Pill tone="bad">German required</Pill> : <Pill tone="ok">English OK</Pill>,
       sortValue: r => (r.germanRequired ? 1 : 0),
     },

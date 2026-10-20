@@ -86,8 +86,8 @@ export default function AdminPremium() {
       render: r => <><span className="adm-cell-strong">{r.name || '—'}</span> <span className="adm-muted">{r.email || 'unknown'}</span></>,
       title: r => r.email, sortValue: r => (r.email || '').toLowerCase(),
     },
-    { key: 'code', header: 'Code', width: 130, render: r => <span className="adm-mono">{r.promoCode || '—'}</span>, sortValue: r => r.promoCode ?? '' },
-    { key: 'plan', header: 'Plan', width: 84, render: r => r.plan, sortValue: r => r.plan },
+    { key: 'code', header: 'Code', width: 130, hideOnSmall: true, render: r => <span className="adm-mono">{r.promoCode || '—'}</span>, sortValue: r => r.promoCode ?? '' },
+    { key: 'plan', header: 'Plan', width: 84, hideOnSmall: true, render: r => r.plan, sortValue: r => r.plan },
     { key: 'start', header: 'Activated', width: 88, render: r => fmtShortDate(r.startedAt), sortValue: r => -new Date(r.startedAt).getTime() },
     { key: 'exp', header: 'Expires', width: 88, hideOnSmall: true, render: r => fmtShortDate(r.expiresAt), sortValue: r => new Date(r.expiresAt).getTime() },
     { key: 'status', header: 'Status', width: 92, render: r => <span className="adm-row"><Dot tone={r.status === 'active' ? 'ok' : 'neutral'} />{r.status}</span>, sortValue: r => r.status },
@@ -95,7 +95,7 @@ export default function AdminPremium() {
 
   const waitlistColumns: Column<WaitlistRow>[] = [
     { key: 'email', header: 'Email', render: w => <span className="adm-cell-strong">{w.generatedForEmail || 'unknown'}</span>, title: w => w.generatedForEmail, sortValue: w => (w.generatedForEmail || '').toLowerCase() },
-    { key: 'code', header: 'Code', width: 130, render: w => <span className="adm-mono">{w.code}</span> },
+    { key: 'code', header: 'Code', width: 130, hideOnSmall: true, render: w => <span className="adm-mono">{w.code}</span> },
     { key: 'joined', header: 'Joined', width: 88, render: w => fmtShortDate(w.createdAt), sortValue: w => -new Date(w.createdAt).getTime() },
     { key: 'exp', header: 'Expires', width: 88, hideOnSmall: true, render: w => fmtShortDate(w.expiresAt), sortValue: w => new Date(w.expiresAt).getTime() },
     { key: 'status', header: 'Status', width: 100, render: w => <span className="adm-row"><Dot tone={WAITLIST_TONE[w.status]} />{w.status}</span>, sortValue: w => w.status },
@@ -130,7 +130,7 @@ export default function AdminPremium() {
               ]}
             />
             {data && data.daily.length > 0 && (
-              <div className="adm-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+              <div className="adm-grid adm-mini-charts">
                 <BarStrip title="Signups / day" points={data.daily} valueOf={p => p.signups} />
                 <BarStrip title="Waitlist joins / day" points={data.daily} valueOf={p => p.waitlistJoins} />
                 <BarStrip title="Redemptions / day" points={data.daily} valueOf={p => p.redemptions} />

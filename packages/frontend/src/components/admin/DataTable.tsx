@@ -4,12 +4,15 @@
  * Dense, sortable table with a sticky header and optional row selection.
  *
  * Column widths are fixed (table-layout: fixed) so long titles truncate with an
- * ellipsis instead of pushing other columns off screen. The selected row is
+ * ellipsis instead of pushing other columns off screen. On phones the table
+ * never squeezes below the sum of its fixed widths + FILL_MIN_PX per flexible
+ * column (--adm-table-min): instead it scrolls sideways inside its panel with
+ * the first, identifying column pinned (admin.css). The selected row is
  * scrolled into view whenever it changes, which is what makes j/k navigation
  * usable on long lists. onEndReached fires near the bottom for progressive
  * loading of server-paginated lists.
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 
 export interface Column<T> {
@@ -42,6 +45,8 @@ interface Props<T> {
 type SortState = { key: string; dir: 'asc' | 'desc' } | null;
 
 const END_REACHED_PX = 240;
+/** Narrowest a width-less (fill) column may get before the table scrolls sideways. */
+const FILL_MIN_PX = 140;
 
 export function DataTable<T>({
   rows, columns, rowKey, selectedKey, onRowClick, initialSort, onEndReached, empty, footer,
@@ -80,6 +85,20 @@ export function DataTable<T>({
     });
   };
 
+  // Columns hidden on phones don't count. A '26%' column still takes its share
+  // at the minimum width, so the fixed pixels are scaled up to leave room for it.
+  const minWidth = useMemo(() => {
+    let px = 0;
+    let pct = 0;
+    for (const c of columns) {
+      if (c.hideOnSmall) continue;
+      if (typeof c.width === 'number') px += c.width;
+      else if (c.width == null) px += FILL_MIN_PX;
+      else if (c.width.endsWith('%')) pct += parseFloat(c.width) / 100;
+    }
+    return Math.round(px / Math.max(0.2, 1 - pct));
+  }, [columns]);
+
   const handleScroll = () => {
     const el = wrapRef.current;
     if (!el || !onEndReached) return;
@@ -89,7 +108,7 @@ export function DataTable<T>({
   return (
     <>
       <div className="adm-table-wrap" ref={wrapRef} onScroll={handleScroll}>
-        <table className="adm-table">
+        <table className="adm-table" style={{ '--adm-table-min': `${minWidth}px` } as CSSProperties}>
           <colgroup>
             {columns.map(c => (
               <col key={c.key} className={c.hideOnSmall ? 'adm-hide-sm' : undefined} style={c.width != null ? { width: c.width } : undefined} />

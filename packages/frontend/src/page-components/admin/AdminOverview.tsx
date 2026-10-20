@@ -10,7 +10,7 @@
  * Every panel loads independently, so one slow endpoint never blanks the page.
  * A second tab (?tab=users) holds Users & growth (AdminUsersGrowth.tsx).
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { RefreshCw, ArrowRight } from 'lucide-react';
 import { useNavigate, useSearchParams } from '@/compat/router';
 import AdminUsersGrowth from './AdminUsersGrowth';
@@ -180,7 +180,7 @@ function OperationsOverview({ tabs }: { tabs: React.ReactNode }) {
       key: 'state', header: 'State', width: 92,
       render: j => j.Status === 'pending_review' ? <Pill tone="warn">Decide</Pill> : <Pill tone="accent">Live</Pill>,
     },
-    { key: 'conf', header: 'Conf.', width: 100, align: 'right', render: j => <Meter value={j.ConfidenceScore} /> },
+    { key: 'conf', header: 'Conf.', width: 100, align: 'right', hideOnSmall: true, render: j => <Meter value={j.ConfidenceScore} /> },
     { key: 'age', header: 'Age', width: 52, align: 'right', render: j => <span className="adm-muted">{fmtAge(j.scrapedAt)}</span> },
   ];
 
@@ -265,14 +265,14 @@ function OperationsOverview({ tabs }: { tabs: React.ReactNode }) {
           </Panel>
         </div>
 
-        <div className="adm-grid" style={{ gridTemplateColumns: 'minmax(0, 1.7fr) minmax(280px, 1fr)' }}>
+        <div className="adm-grid adm-ov-row3">
           <Panel
             title="Next in review queue"
             meta={c ? `${fmtNumber(c.pendingReview)} total` : undefined}
             actions={<LinkBtn to="/admin/review" variant="primary">Open queue <ArrowRight size={12} /></LinkBtn>}
             flush
           >
-            <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(var(--adm-row) * 12 + 31px)' }}>
+            <div className="adm-rows-box" style={{ '--rows': 12 } as CSSProperties}>
               {queue.loading && !queue.data ? <SkeletonRows rows={8} cols={4} /> : (
                 <DataTable
                   rows={queue.data?.jobs ?? []}
