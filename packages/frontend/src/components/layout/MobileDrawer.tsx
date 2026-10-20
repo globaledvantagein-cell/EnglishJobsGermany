@@ -5,6 +5,7 @@ import { LogOut, User as UserIcon, X } from 'lucide-react';
 import { Badge, Button } from '../ui';
 import { USER_MENU_LINKS } from './navLinks';
 import BrandLogo from '../BrandLogo';
+import { createPortal } from 'react-dom';
 
 interface User {
   name: string;
@@ -51,7 +52,10 @@ export default function MobileDrawer({
 }: Props) {
   if (!open) return null;
 
-  return (
+  // Portaled to <body>: the site header uses backdrop-filter, which makes it
+  // the containing block for fixed children on Safari, and page-wash clips
+  // them on iOS (WebKit 160953).
+  return createPortal(
     <>
       <div className="nav-drawer-overlay" onClick={onClose} aria-hidden="true" />
       <div
@@ -140,6 +144,7 @@ export default function MobileDrawer({
           )}
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }

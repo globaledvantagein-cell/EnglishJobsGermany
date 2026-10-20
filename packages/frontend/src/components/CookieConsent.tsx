@@ -66,7 +66,8 @@ export default function CookieConsent() {
       aria-label="Cookie consent"
       style={{
         // 150: above the page, header, job Apply bar (60) and mobile job view
-        // (100), but BELOW bottom sheets (200) and modals (300+) — at 400 it
+        // (100), but BELOW the menu drawer (180), bottom sheets (200) and
+        // modals (300+) — at 400 it
         // covered the open filter sheet, hiding its lower half and the
         // "Show jobs" button for anyone who hadn't answered the banner yet.
         position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 150,
