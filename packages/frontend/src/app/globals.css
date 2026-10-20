@@ -2846,6 +2846,11 @@ details[name] > summary { scroll-margin-top: 84px; }
    .hero-wash  on a hero <section> (stops relative to its height)
    .page-wash  on a full-width page wrapper (fixed-px stops)
    ═══════════════════════════════════════════════════════════════════ */
+/* WARNING: iOS Safari (WebKit bug 160953) clips position:fixed descendants
+   of an element that clips overflow and forms a stacking context — which
+   this does (relative + isolation + overflow: clip). Sheets, modals and
+   toasts must render via createPortal(…, document.body), never inside a
+   page-wash. The mobile filter sheet was invisible on iPhone because of it. */
 .hero-wash, .page-wash {
   --wash-a: rgba(147, 197, 253, 0.14); --wash-b: rgba(134, 239, 172, 0.06);
   --glow-a: rgba(96, 165, 250, 0.16);  --glow-b: rgba(74, 222, 128, 0.12); --glow-c: transparent;
