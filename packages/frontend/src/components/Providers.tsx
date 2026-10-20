@@ -7,6 +7,7 @@ import { AuthProvider } from '../context/AuthContext';
 import { AppliedJobsProvider } from '../context/AppliedJobsContext';
 import { SavedJobsProvider } from '../context/SavedJobsContext';
 import TrackingInit from './TrackingInit';
+import ViewportChromeInset from './ViewportChromeInset';
 import CookieConsent from './CookieConsent';
 import GAPageView from './GAPageView';
 
@@ -28,6 +29,7 @@ export default function Providers({ children }: { children: ReactNode }) {
           <AppliedJobsProvider>
             <SavedJobsProvider>
               <TrackingInit />
+              <ViewportChromeInset />
               {/* GAPageView reads useSearchParams, which needs a Suspense
                   boundary during prerender. */}
               <Suspense fallback={null}>

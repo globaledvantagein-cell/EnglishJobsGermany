@@ -16,14 +16,14 @@ import { Search } from 'lucide-react';
 import { apiGet, apiPost } from '../../utils/jobApi';
 import { withFeature } from '../FeatureGate';
 import { useAdminUi } from './AdminUiContext';
-import { DataTable, type Column } from './DataTable';
-import { Btn, Dot, Empty, Panel, Pill, SkeletonRows, errorText, fmtAge, fmtNumber } from './primitives';
+import { Btn, Dot, Empty, Panel, Seg, SkeletonRows, errorText, fmtAge, fmtNumber } from './primitives';
 
 interface Subscriber {
   _id: string; email: string; name?: string; isSubscribed?: boolean; createdAt?: string;
   lastEmailSent?: string; unsubscribedAt?: string; unsubscribeSource?: string;
 }
-interface SubscribersResponse { users: Subscriber[]; totals: { subscribed: number; unsubscribed: number; total: number } }
+interface SubscribersResponse { users: Subscriber[]; totals: { subscribed: number; notSubscribed: number; optedOut: number; total: number } }
+type StatusFilter = 'subscribed' | 'not' | 'all';
 
 const SEARCH_DEBOUNCE_MS = 300;
 const PAGE_SIZE = 30;
@@ -36,10 +36,11 @@ function SubscribersPanel() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [limit, setLimit] = useState(PAGE_SIZE);
+  const [status, setStatus] = useState<StatusFilter>('subscribed');
 
-  const load = useCallback(async (q: string, max: number) => {
+  const load = useCallback(async (q: string, max: number, which: StatusFilter) => {
     try {
-      setData(await apiGet<SubscribersResponse>(`/api/admin/subscribers?q=${encodeURIComponent(q)}&limit=${max}`));
+      setData(await apiGet<SubscribersResponse>(`/api/admin/subscribers?q=${encodeURIComponent(q)}&limit=${max}&status=${which}`));
       setError(null);
     } catch (err) {
       setError(errorText(err));
@@ -47,9 +48,9 @@ function SubscribersPanel() {
   }, []);
 
   useEffect(() => {
-    const id = window.setTimeout(() => load(query, limit), SEARCH_DEBOUNCE_MS);
+    const id = window.setTimeout(() => load(query, limit, status), SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(id);
-  }, [query, limit, load]);
+  }, [query, limit, status, load]);
 
   const toggle = async (user: Subscriber) => {
     const next = !user.isSubscribed;
@@ -66,7 +67,7 @@ function SubscribersPanel() {
     try {
       await apiPost('/api/admin/subscribers/set', { email: user.email, isSubscribed: next });
       toast(`${user.email} ${next ? 'resubscribed' : 'unsubscribed'}`);
-      await load(query, limit);
+      await load(query, limit, status);
     } catch (err) {
       toast(`Could not update ${user.email}: ${errorText(err)}`, { tone: 'bad' });
     } finally {
@@ -74,73 +75,62 @@ function SubscribersPanel() {
     }
   };
 
-  /** "mailed 2d ago" / "via email link · 3d ago" — the detail next to a status. */
+  /** "mailed 2d ago" / "email link · 3d ago" — the detail after a status. */
   const statusDetail = (u: Subscriber) => u.isSubscribed
     ? (u.lastEmailSent ? `mailed ${fmtAge(u.lastEmailSent)} ago` : 'not mailed yet')
     : (u.unsubscribedAt ? `${SOURCE_LABEL[u.unsubscribeSource || ''] || 'earlier'} · ${fmtAge(u.unsubscribedAt)} ago` : '');
-
-  const columns: Column<Subscriber>[] = [
-    {
-      key: 'email', header: 'Email',
-      render: u => (
-        <span className="adm-sub-who">
-          <span className="adm-cell-strong">{u.email}</span>
-          {/* Phones hide the Status column; its essentials ride under the email. */}
-          <span className="adm-muted adm-show-sm">
-            <Dot tone={u.isSubscribed ? 'ok' : 'neutral'} /> {u.isSubscribed ? 'Subscribed' : 'Unsubscribed'}{statusDetail(u) && ` · ${statusDetail(u)}`}
-          </span>
-          {u.name && <span className="adm-muted adm-hide-sm">{u.name}</span>}
-        </span>
-      ),
-      title: u => u.email,
-      sortValue: u => u.email,
-    },
-    {
-      key: 'status', header: 'Status', width: 210, hideOnSmall: true,
-      render: u => (
-        <span className="adm-row" style={{ gap: 6 }}>
-          {u.isSubscribed ? <Pill tone="ok">Subscribed</Pill> : <Pill>Unsubscribed</Pill>}
-          <span className="adm-muted" style={{ fontSize: 11.5 }}>{statusDetail(u)}</span>
-        </span>
-      ),
-      sortValue: u => (u.isSubscribed ? 1 : 0),
-    },
-    {
-      key: 'action', header: '', width: 104, align: 'right',
-      render: u => (
-        <Btn size="sm" loading={saving === u.email} onClick={() => toggle(u)}>
-          {u.isSubscribed ? 'Unsubscribe' : 'Resubscribe'}
-        </Btn>
-      ),
-    },
-  ];
+  const statusLabel = (u: Subscriber) => u.isSubscribed ? 'Subscribed' : u.unsubscribedAt ? 'Unsubscribed' : 'Not subscribed';
 
   const t = data?.totals;
+  const rows = data?.users ?? [];
   return (
     <Panel
       title="Subscribers"
-      meta={t ? `${fmtNumber(t.subscribed)} subscribed · ${fmtNumber(t.unsubscribed)} unsubscribed` : undefined}
-      actions={
-        <label className="adm-search">
-          <Search size={13} />
-          <input className="adm-input" type="search" placeholder="Search email or name" value={query}
-            onChange={e => { setQuery(e.target.value); setLimit(PAGE_SIZE); }} aria-label="Search subscribers" />
-        </label>
-      }
+      meta={t ? `${fmtNumber(t.subscribed)} subscribed · ${fmtNumber(t.optedOut)} opted out` : undefined}
       flush
     >
+      <div className="adm-toolbar">
+        <label className="adm-search adm-grow">
+          <Search size={13} />
+          <input className="adm-input" type="search" placeholder="Search email or name" value={query} style={{ width: '100%' }}
+            onChange={e => { setQuery(e.target.value); setLimit(PAGE_SIZE); }} aria-label="Search subscribers" />
+        </label>
+        <Seg<StatusFilter>
+          label="Status"
+          value={status}
+          onChange={next => { setStatus(next); setLimit(PAGE_SIZE); }}
+          options={[
+            { value: 'subscribed', label: 'Subscribed', count: t?.subscribed },
+            { value: 'not', label: 'Not', count: t?.notSubscribed },
+            { value: 'all', label: 'All', count: t?.total },
+          ]}
+        />
+      </div>
       {error && <div className="adm-muted" style={{ padding: '8px 10px', fontSize: 12 }}>Could not load subscribers: {error}</div>}
-      <div className="adm-rows-box">
-        {!data && !error ? <SkeletonRows rows={6} cols={3} /> : (
-          <DataTable
-            rows={data?.users ?? []}
-            columns={columns}
-            rowKey={u => u._id}
-            empty={<Empty title={query ? 'No match' : 'No users yet'} body={query ? `Nobody matches “${query}”.` : undefined} />}
-            footer={data && data.users.length >= limit
-              ? <Btn size="sm" variant="ghost" onClick={() => setLimit(n => n + PAGE_SIZE)}>Show {PAGE_SIZE} more</Btn>
-              : undefined}
-          />
+      <div className="adm-rows-box adm-sub-list" style={{ overflowY: 'auto' }}>
+        {!data && !error ? <SkeletonRows rows={6} cols={2} /> : rows.length === 0 ? (
+          <Empty title={query ? 'No match' : 'Nobody here'} body={query ? `Nobody matches “${query}”.` : undefined} />
+        ) : (
+          <ul>
+            {rows.map(u => (
+              <li key={u._id}>
+                <div className="adm-sub-who">
+                  <span className="adm-cell-strong" title={u.email}>{u.email}</span>
+                  <span className="adm-muted">
+                    <Dot tone={u.isSubscribed ? 'ok' : 'neutral'} /> {statusLabel(u)}{statusDetail(u) && ` · ${statusDetail(u)}`}{u.name && ` · ${u.name}`}
+                  </span>
+                </div>
+                <Btn size="sm" loading={saving === u.email} onClick={() => toggle(u)}>
+                  {u.isSubscribed ? 'Unsubscribe' : 'Subscribe'}
+                </Btn>
+              </li>
+            ))}
+            {rows.length >= limit && (
+              <li className="adm-sub-more">
+                <Btn size="sm" variant="ghost" onClick={() => setLimit(n => n + PAGE_SIZE)}>Show {PAGE_SIZE} more</Btn>
+              </li>
+            )}
+          </ul>
         )}
       </div>
     </Panel>

@@ -44,7 +44,7 @@ function ApplyConfirmToast({ jobTitle, company, onConfirm, onDismiss }: Props) {
 
   return (
     <div style={{
-      position: 'fixed', bottom: 20, left: '50%',
+      position: 'fixed', bottom: 'calc(20px + env(safe-area-inset-bottom) + var(--chrome-inset-bottom, 0px))', left: '50%',
       transform: `translateX(-50%) translateY(${visible && !exiting ? '0' : '20px'})`,
       opacity: visible && !exiting ? 1 : 0,
       transition: 'transform 0.3s ease, opacity 0.3s ease', zIndex: 9998,

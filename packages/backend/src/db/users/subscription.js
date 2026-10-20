@@ -69,22 +69,30 @@ export async function setSubscriptionByEmail(email, isSubscribed, source) {
 
 /**
  * Admin Subscribers panel: users matching `query` (email or name), newest
- * first, plus mailing-list totals.
+ * first, plus mailing-list totals. `status` narrows the list ('subscribed' |
+ * 'not') unless a search is given — a search always covers everyone, since
+ * the point is usually to find one person.
  */
-export async function listSubscribers({ query = '', limit = 50 } = {}) {
+export async function listSubscribers({ query = '', limit = 50, status = 'all' } = {}) {
     const db = await connectToDb();
     const users = db.collection('users');
     const q = String(query).trim();
     const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const filter = q ? { $or: [{ email: { $regex: escaped, $options: 'i' } }, { name: { $regex: escaped, $options: 'i' } }] } : {};
-    const [rows, subscribed, total] = await Promise.all([
+    const filter = q
+        ? { $or: [{ email: { $regex: escaped, $options: 'i' } }, { name: { $regex: escaped, $options: 'i' } }] }
+        : status === 'subscribed' ? { isSubscribed: true }
+            : status === 'not' ? { isSubscribed: { $ne: true } }
+                : {};
+    const [rows, subscribed, total, optedOut] = await Promise.all([
         users.find(filter, {
             projection: { email: 1, name: 1, isSubscribed: 1, createdAt: 1, lastEmailSent: 1, unsubscribedAt: 1, unsubscribeSource: 1 },
         }).sort({ createdAt: -1 }).limit(Math.min(Number(limit) || 50, 200)).toArray(),
         users.countDocuments({ isSubscribed: true }),
         users.countDocuments({}),
+        users.countDocuments({ isSubscribed: { $ne: true }, unsubscribedAt: { $exists: true } }),
     ]);
-    return { users: rows, totals: { subscribed, unsubscribed: total - subscribed, total } };
+    // notSubscribed = never opted in or opted out; optedOut = an unsubscribe was recorded.
+    return { users: rows, totals: { subscribed, notSubscribed: total - subscribed, optedOut, total } };
 }
 
 /**

@@ -39,6 +39,7 @@ import { saveHealthRun, getHealthHistory } from '../../db/healthRunQueries.js';
 import { getLatestValidatorRun } from '../../db/validatorRunQueries.js';
 import { getValidatorStatus } from '../../cron/runValidator.js';
 import { isFeatureEnabled } from '../../features/featureSwitches.js';
+import { checkGemmaKeys } from '../../gemma/keyCheck.js';
 
 // Values written before the AI categorizer existed. A job still carrying one of
 // these is uncategorized as far as the 28-category filter is concerned.
@@ -329,9 +330,21 @@ const CHECKS = [
             const enrichedPct = Math.round((enriched / total) * 100);
             const otherPct = Math.round((uncategorized / total) * 100);
             const detail = `last 3 days: ${enriched}/${total} enriched (${enrichedPct}%), ${otherPct}% in "Other / General Business"`;
-            if (enriched === 0) return { status: 'fail', detail: `no job enriched — check GEMMA_API_KEYS · ${detail}` };
+            if (enriched === 0) return { status: 'fail', detail: `no job enriched — see "Gemma API keys" · ${detail}` };
             if (enrichedPct < 40 || otherPct > 20) return { status: 'warn', detail };
             return { status: 'ok', detail };
+        },
+    },
+    {
+        // Each key by slot + last 4 characters, so a dead key can be found in
+        // AI Studio. Free models.get calls, cached 10 minutes (gemma/keyCheck.js).
+        key: 'gemma_keys', label: 'Gemma API keys', group: 'Data', critical: false,
+        run: async () => {
+            const check = await checkGemmaKeys();
+            const dupes = check.keys.some(k => k.duplicateOf);
+            if (check.valid === 0) return { status: 'fail', detail: check.summary };
+            if (check.valid < check.total || dupes) return { status: 'warn', detail: check.summary };
+            return { status: 'ok', detail: check.summary };
         },
     },
     {

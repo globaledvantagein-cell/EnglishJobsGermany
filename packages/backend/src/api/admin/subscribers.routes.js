@@ -1,7 +1,7 @@
 /**
  * Admin subscribers API — backs the "Subscribers" panel on /admin (Users & growth).
  *
- *   GET  /api/admin/subscribers?q=&limit=     matching users + mailing-list totals
+ *   GET  /api/admin/subscribers?q=&limit=&status=subscribed|not   matching users + totals
  *   POST /api/admin/subscribers/set           { email, isSubscribed } — handle
  *                                             "please unsubscribe me" emails
  *
@@ -17,7 +17,7 @@ adminSubscribersRouter.use(verifyToken, verifyAdmin);
 
 adminSubscribersRouter.get('/', async (req, res) => {
     try {
-        res.status(200).json(await listSubscribers({ query: req.query.q, limit: req.query.limit }));
+        res.status(200).json(await listSubscribers({ query: req.query.q, limit: req.query.limit, status: req.query.status }));
     } catch (error) {
         console.error('[admin/subscribers] list failed:', error.message);
         res.status(500).json({ error: 'Could not load subscribers.' });

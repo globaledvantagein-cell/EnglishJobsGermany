@@ -139,13 +139,20 @@
   .jd-main { padding: 18px; }
   .jd-company-card { grid-template-columns: auto minmax(0, 1fr); padding: 16px; }
   .jd-company-card-link { grid-column: 1 / -1; }
+  /* iOS 26 Safari draws the page behind its translucent floating toolbar and
+     tints that toolbar from whatever sits at the bottom edge — including an
+     element merely translated off-screen. So the hidden bar must leave the
+     render tree (display: none); allow-discrete keeps the slide animation.
+     The safe-area padding needs viewport-fit=cover (app/layout.tsx);
+     --chrome-inset-bottom adds whatever Safari's toolbar covers (ViewportChromeInset). */
   .jd-mobile-bar {
     display: flex; gap: 10px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
-    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    padding: 10px max(14px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom) + var(--chrome-inset-bottom, 0px)) max(14px, env(safe-area-inset-left));
     background: var(--bg-surface); border-top: 1px solid var(--border); box-shadow: 0 -6px 20px rgba(0,0,0,0.08);
-    transition: transform var(--dur-3) var(--ease-out-soft);
+    transition: transform var(--dur-3) var(--ease-out-soft), display var(--dur-3) allow-discrete;
   }
-  .jd-mobile-bar[data-show='false'] { transform: translateY(110%); pointer-events: none; }
+  .jd-mobile-bar[data-show='false'] { display: none; transform: translateY(100%); }
+  @starting-style { .jd-mobile-bar[data-show='true'] { transform: translateY(100%); } }
   .jd-mobile-bar .jd-apply { flex: 1; }
 }
 

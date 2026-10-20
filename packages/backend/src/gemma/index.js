@@ -6,3 +6,4 @@ export { callGemma } from './gemmaClient.js';
 export { extractRequirements } from './extractRequirements.js';
 export { getNextKey, getKeyCount } from './keyManager.js';
 export { extractAndStoreRequirements } from './backgroundExtractor.js';
+export { checkGemmaKeys } from './keyCheck.js';

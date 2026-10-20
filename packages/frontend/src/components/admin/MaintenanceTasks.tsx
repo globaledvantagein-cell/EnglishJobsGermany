@@ -23,7 +23,7 @@ import { Btn, Dot, errorText, fmtAge, fmtNumber } from './primitives';
 interface Task { key: string; label: string; description: string }
 interface Status { running: boolean; task: string | null; startedAt: string | null; stage: string | null; done: number; total: number }
 interface Counted { processed?: number; succeeded?: number; failed?: number }
-interface RunResult { reason?: string; requirements?: Counted; categories?: Counted; jobs?: Counted; remoteJobs?: Counted; sources?: number; newJobs?: number }
+interface RunResult { reason?: string; keyWarning?: string; requirements?: Counted; categories?: Counted; jobs?: Counted; remoteJobs?: Counted; sources?: number; newJobs?: number }
 interface Run { task: string; label: string; startedAt: string; finishedAt: string; ok: boolean; result: RunResult | null }
 interface MaintenanceState { tasks: Task[]; status: Status; runs: Run[] }
 
@@ -38,7 +38,8 @@ function describeRun(run: Run): string {
   if (run.task === 'fill-ai-data') {
     const q = r.requirements || {};
     const c = r.categories || {};
-    return `${fmtNumber(q.succeeded)} job ads read${q.failed ? `, ${fmtNumber(q.failed)} failed` : ''} · ${fmtNumber(c.processed)} re-categorized`;
+    const done = `${fmtNumber(q.succeeded)} job ads read${q.failed ? `, ${fmtNumber(q.failed)} failed` : ''} · ${fmtNumber(c.processed)} re-categorized`;
+    return r.keyWarning ? `${done} · ${r.keyWarning}` : done;
   }
   if (run.task === 'recompute-filters') {
     return `${fmtNumber((r.jobs?.processed || 0) + (r.remoteJobs?.processed || 0))} jobs recomputed`;

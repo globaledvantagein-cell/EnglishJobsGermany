@@ -682,11 +682,16 @@ a.adm-kpi:hover { background: var(--adm-sunken); }
 /* Wide custom tables (cohorts): scroll sideways inside the panel. */
 .adm-hscroll { overflow-x: auto; overscroll-behavior-x: contain; }
 
-/* Subscribers: email over a one-line status (status column hidden on phones). */
-.adm-table td:has(.adm-sub-who) { white-space: normal; padding-block: 5px; }
-.adm-sub-who { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
+/* Subscribers list (SubscribersPanel): email over a one-line status, action
+   on the right. min-width: 0 lets long emails ellipsize instead of pushing
+   the button off a phone screen. */
+.adm-sub-list ul { list-style: none; margin: 0; padding: 0; }
+.adm-sub-list li { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-bottom: 1px solid var(--adm-line); }
+.adm-sub-list li.adm-sub-more { justify-content: center; border-bottom: none; }
+.adm-sub-who { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.35; }
 .adm-sub-who > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
-.adm-sub-who > .adm-cell-strong { font-size: 12.5px; }
+.adm-sub-who > .adm-cell-strong { font-size: 12.5px; font-weight: 600; color: var(--adm-ink); }
+.adm-sub-list .adm-btn { flex-shrink: 0; }
 .adm-cohort th, .adm-cohort td { white-space: nowrap; }
 
 @media (max-width: 900px) {

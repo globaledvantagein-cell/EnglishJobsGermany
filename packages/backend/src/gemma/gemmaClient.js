@@ -6,7 +6,7 @@
 //
 // Separate from src/gemini/ — does not import from it.
 
-import { getNextKey, recordModelUsage, isModelExhaustedEverywhere } from './keyManager.js';
+import { getNextKey, recordModelUsage, isModelExhaustedEverywhere, setKeyRejected, allKeysRejected } from './keyManager.js';
 
 const MODEL_NAME = 'gemma-4-26b-a4b-it';
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -18,6 +18,14 @@ const GEMMA_CASCADE = ['gemma-4-26b-a4b-it', 'gemma-4-31b-it'];
 
 /** Error code marking a permanent (not transient) "no budget left" failure. */
 const MODEL_EXHAUSTED = 'MODEL_EXHAUSTED';
+/** Error code: Google rejected every configured key (invalid/blocked). */
+export const KEYS_REJECTED = 'KEYS_REJECTED';
+
+/** True for a response meaning the key itself is bad, not the request. */
+function isKeyRejection(error) {
+    return (error.status === 400 && /API_KEY_INVALID|API key not valid/i.test(error.message))
+        || error.status === 403;
+}
 
 const DEFAULT_TEMPERATURE = 0.1;
 const MAX_RETRIES = 3;          // retries on 429 (rate limited)
@@ -153,6 +161,11 @@ export async function callGemma(systemPrompt, userMessage, options = {}) {
 
         // Every key is out of budget or at its per-minute ceiling for this
         // model. Surface it as a tagged error so the cascade can drop a tier.
+        if (!slot && allKeysRejected()) {
+            const err = new Error('[Gemma] Every API key was rejected by Google (API key not valid)');
+            err.code = KEYS_REJECTED;
+            throw err;
+        }
         if (!slot) {
             const err = new Error(`[Gemma] Model ${model} exhausted on all keys`);
             err.code = MODEL_EXHAUSTED;
@@ -205,6 +218,13 @@ export async function callGemma(systemPrompt, userMessage, options = {}) {
                 hasRetriedServerError = true;
                 console.warn(`[Gemma] ${status} — retrying once after ${SERVER_ERROR_RETRY_MS}ms`);
                 await sleep(SERVER_ERROR_RETRY_MS);
+                continue;
+            }
+
+            // This key is dead (invalid, deleted, blocked) — drop it from the
+            // rotation and try the next one instead of failing the call.
+            if (isKeyRejection(error)) {
+                setKeyRejected(keyIndex, true);
                 continue;
             }
 

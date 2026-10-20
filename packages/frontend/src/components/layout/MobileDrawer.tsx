@@ -102,7 +102,7 @@ export default function MobileDrawer({
           )}
         </nav>
 
-        <div style={{ borderTop: '1px solid var(--border)', padding: '16px 20px', flexShrink: 0, paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+        <div style={{ borderTop: '1px solid var(--border)', padding: '16px 20px', flexShrink: 0, paddingBottom: 'calc(max(16px, env(safe-area-inset-bottom)) + var(--chrome-inset-bottom, 0px))' }}>
           {isAuthenticated ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <Link

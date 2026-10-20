@@ -3,7 +3,7 @@
 /**
  * Dead-link validator strip for /admin/health — one compact panel row:
  *
- *   Dead links · last run 3h ago (cron) │ jobs 412 expired · remote 88 │ [Check links now]
+ *   Dead links · last run 3h ago (cron) │ Germany 412 dead removed · 3,400 live │ [Check links now]
  *
  * The button starts a full sweep on the server (POST /api/admin/validator/run)
  * and the panel polls progress until it finishes, so it works from a phone
@@ -106,7 +106,12 @@ function LinkValidatorPanel({ onFinished }: { onFinished?: () => void }) {
         <div className="adm-row" style={{ gap: 14, flexWrap: 'wrap', fontSize: 12.5 }}>
           {Object.entries(last.summary).map(([name, c]) => (
             <span key={name} className="adm-num">
-              <b>{LABEL[name] ?? name}</b> {fmtNumber(c.expired)} expired · {fmtNumber(c.live)} live · <span className="adm-muted">{fmtNumber(c.unknown)} unknown</span>
+              {/* "removed" = taken off the site in that run; dead jobs the breaker
+                  held back are counted separately so nothing reads as removed
+                  when it wasn't. */}
+              <b>{LABEL[name] ?? name}</b> {fmtNumber(c.expired)} dead removed
+              {c.dead > c.expired && <span style={{ color: 'var(--adm-warn)' }}> · {fmtNumber(c.dead - c.expired)} dead kept</span>}
+              {' · '}{fmtNumber(c.live)} live · <span className="adm-muted" title="The source didn't give a clear answer, so the job stays up">{fmtNumber(c.unknown)} unclear</span>
             </span>
           ))}
           {tripped.length > 0 && <span style={{ color: 'var(--adm-warn)' }}>Breaker held back {tripped.join(', ')}</span>}

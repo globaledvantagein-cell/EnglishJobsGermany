@@ -67,7 +67,7 @@ function RemoteDashboard() {
           filters={filters} setFilters={setFilters}
           companyOptions={companyOptions} categoryOptions={categoryOptions}
           facetCounts={facetCounts}
-          filteredCount={jobs.length}
+          filteredCount={totalJobs /* all matches, not just the loaded page */}
           hasActiveFilters={hasActiveFilters} clearFilters={clearFilters}
           openDropdown={openDropdown} setOpenDropdown={setOpenDropdown}
           onClose={() => setFilterSheetOpen(false)}

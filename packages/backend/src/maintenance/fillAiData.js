@@ -12,14 +12,17 @@
 //      the jobs whose AI categorization failed; jobs the AI genuinely placed in
 //      "Other" just come back unchanged.
 //
-// A preflight call aborts early with a clear reason when Gemma rejects the keys,
-// instead of grinding through thousands of failures.
+// A preflight checks every Gemma key (checkGemmaKeys) and aborts with a reason
+// naming each rejected key when none works, instead of grinding through
+// thousands of failures. With some keys working it runs on those and reports
+// the rest; rejected keys are dropped from the rotation.
 //
 // Used by the admin "Fill missing AI data" button (maintenance/taskRunner.js).
 
 import { connectToDb } from '../db/connection.js';
 import { extractAndStoreRequirements } from '../gemma/backgroundExtractor.js';
 import { callGemmaWithCascade } from '../gemma/gemmaClient.js';
+import { checkGemmaKeys } from '../gemma/keyCheck.js';
 import { categorizeJobs } from '../core/categorizer/index.js';
 
 const CONCURRENCY = 6;          // one in-flight call per Gemma key
@@ -42,6 +45,10 @@ function preflightReason(error) {
  */
 export async function fillAiData({ onProgress } = {}) {
     const summary = { ok: false, requirements: { matched: 0, succeeded: 0, failed: 0 }, categories: { matched: 0, processed: 0 } };
+
+    const keyCheck = await checkGemmaKeys({ force: true });
+    if (keyCheck.valid === 0) return { ...summary, reason: keyCheck.summary };
+    if (keyCheck.valid < keyCheck.total) summary.keyWarning = keyCheck.summary;
 
     try {
         await callGemmaWithCascade('Reply with the single word: ok', 'ok');

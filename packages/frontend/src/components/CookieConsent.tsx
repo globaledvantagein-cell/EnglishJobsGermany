@@ -66,7 +66,7 @@ export default function CookieConsent() {
       aria-label="Cookie consent"
       style={{
         position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 400,
-        padding: '12px 16px calc(12px + env(safe-area-inset-bottom))',
+        padding: '12px 16px calc(12px + env(safe-area-inset-bottom) + var(--chrome-inset-bottom, 0px))',
         display: 'flex', justifyContent: 'center',
         pointerEvents: 'none',
       }}

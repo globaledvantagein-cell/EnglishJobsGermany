@@ -525,7 +525,7 @@ export function RemoteMobileFilterSheet({
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
         background: 'var(--bg-base)', borderRadius: '20px 20px 0 0',
-        padding: '16px 16px calc(16px + env(safe-area-inset-bottom))',
+        padding: '16px 16px calc(16px + env(safe-area-inset-bottom) + var(--chrome-inset-bottom, 0px))',
         maxHeight: '80dvh', display: 'flex', flexDirection: 'column',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -564,7 +564,7 @@ export function RemoteMobileFilterSheet({
             onClick={onClose}
             style={{ flex: 2, height: 46, borderRadius: 10, border: 'none', background: 'var(--acid)', color: '#000', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer' }}
           >
-            Show {filteredCount} results
+            Show {filteredCount.toLocaleString()} {filteredCount === 1 ? 'job' : 'jobs'}
           </button>
         </div>
       </div>

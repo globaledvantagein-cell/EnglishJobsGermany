@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import "./globals.css";
 import Providers from "@/components/Providers";
@@ -56,6 +56,15 @@ const websiteJsonLd = {
 // variables undefined (white page, black text, no borders) and then snaps to
 // the real palette after hydration — a visible flash on every fresh tab.
 const THEME_BOOT_SCRIPT = `(function(){try{var l=${JSON.stringify(lightVars)},d=${JSON.stringify(darkVars)};var m=null;try{m=localStorage.getItem('ej-theme')}catch(e){}if(m!=='dark'&&m!=='light'){m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}var v=m==='dark'?d:l,r=document.documentElement;for(var k in v){r.style.setProperty(k,v[k])}r.setAttribute('data-theme',m)}catch(e){}})();`;
+
+// viewport-fit=cover makes env(safe-area-inset-*) report the iPhone's real
+// insets, so fixed bottom bars (job page Apply bar, filter sheet) clear the
+// home indicator. globals.css pads the sides for landscape notches.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

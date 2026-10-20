@@ -31,6 +31,30 @@ export const GEMMA_RPM_CAPS = {
 const modelUsage = new Map();
 const minuteState = new Map(); // keyIndex -> { count, windowStart }
 
+// Keys Google rejected (invalid, deleted, blocked). Rotation skips them for the
+// rest of the process — a restart with new GEMMA_API_KEYS clears the set.
+const rejectedKeys = new Set();
+
+/** Marks a key slot as rejected (true) or usable again (false). */
+export function setKeyRejected(keyIndex, rejected) {
+    if (rejected) {
+        if (!rejectedKeys.has(keyIndex)) console.warn(`[Gemma] Key ${keyIndex + 1} rejected by Google — skipping it`);
+        rejectedKeys.add(keyIndex);
+    } else {
+        rejectedKeys.delete(keyIndex);
+    }
+}
+
+/** True when Google has rejected every configured key. */
+export function allKeysRejected() {
+    return rejectedKeys.size > 0 && rejectedKeys.size >= loadKeys().length;
+}
+
+/** The raw key in a slot — only for keyCheck.js, which never logs it. */
+export function getKeyForCheck(keyIndex) {
+    return loadKeys()[keyIndex];
+}
+
 function utcDateKey() {
     return new Date().toISOString().slice(0, 10);
 }
@@ -151,6 +175,7 @@ export function getNextKey(model) {
         const index = currentIndex;
         currentIndex = (currentIndex + 1) % keys.length;
 
+        if (rejectedKeys.has(index)) continue;
         if (model && isModelExhaustedOnKey(index, model)) continue;
         if (rpmCap !== undefined && minuteCount(index) >= rpmCap) continue;
 

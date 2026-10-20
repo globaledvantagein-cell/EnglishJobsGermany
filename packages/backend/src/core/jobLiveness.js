@@ -13,9 +13,10 @@
 //
 //   greenhouse       GET boards-api/v1/boards/{slug}/jobs/{id}    404 = gone
 //   lever            GET api.lever.co/v0/postings/{slug}/{id}     404 = gone
-//   smartrecruiters  GET api/v1/companies/{co}/postings/{id}      404 = gone
+//   smartrecruiters  GET api/v1/companies/{co}/postings/{id}      404, or 200 with active:false = gone
 //   workday          GET wday/cxs/{tenant}/{site}{path}           404, or 403 S22 = gone
 //   ashby            GET posting-api/job-board/{slug}             id missing = gone
+//   personio         GET {slug}.jobs.personio.{tld}/xml            id missing = gone
 //   everything else  GET ApplicationURL                           404/410 = gone
 //
 // Anything ambiguous — timeouts, 5xx, 429, bot walls — is UNKNOWN, never DEAD.
@@ -95,6 +96,12 @@ export function identifyJob(job) {
         if (slug && /^\d+$/.test(id || '')) return { ats: 'greenhouse', slug, id };
     }
 
+    // https://{slug}.jobs.personio.de/job/{id}
+    const personio = host.match(/^([a-z0-9-]+)\.jobs\.personio\.(de|com)$/);
+    if (personio && parts[0] === 'job' && /^\d+$/.test(parts[1] || '')) {
+        return { ats: 'personio', slug: personio[1], tld: personio[2], id: parts[1] };
+    }
+
     if (host === 'jobs.ashbyhq.com' && parts.length >= 2) {
         return { ats: 'ashby', slug: parts[0], id: parts[1] };
     }
@@ -143,6 +150,15 @@ async function checkLever({ slug, id, region }) {
 async function checkSmartRecruiters({ slug, id }) {
     const res = await getWithTimeout(`https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(slug)}/postings/${id}`);
     if (!res) return result(Liveness.UNKNOWN, 'smartrecruiters network');
+    // A closed posting still answers 200 — with "active": false, while its job
+    // page redirects to /expired. Found 2026-10-20 on a Scalable GmbH job that
+    // had been reposted under a new id; status-only checks called it live.
+    if (res.status === 200) {
+        const body = await res.json().catch(() => null);
+        if (body?.active === false) return result(Liveness.DEAD, 'smartrecruiters inactive');
+        if (body?.active === true) return result(Liveness.LIVE, 'smartrecruiters active');
+        return result(Liveness.UNKNOWN, 'smartrecruiters unreadable');
+    }
     return verdictFromStatus(res.status, 'smartrecruiters');
 }
 
@@ -188,6 +204,30 @@ async function checkAshby({ slug, id }, boardCache) {
         : result(Liveness.DEAD, 'ashby not on board');
 }
 
+// Personio's own job page also 404s once a job closes, but its XML feed is the
+// board itself: fetched once per company per sweep, like Ashby.
+async function checkPersonio({ slug, tld, id }, boardCache) {
+    const key = `personio|${slug}.${tld}`;
+    if (!boardCache.has(key)) {
+        boardCache.set(key, (async () => {
+            const res = await getWithTimeout(`https://${slug}.jobs.personio.${tld}/xml?language=en`);
+            if (!res) return { state: 'unknown', reason: 'personio network' };
+            if (res.status === 404) return { state: 'gone' };
+            if (!res.ok) return { state: 'unknown', reason: `personio feed ${res.status}` };
+            const xml = await res.text().catch(() => '');
+            if (!/<workzag-jobs|<position/.test(xml)) return { state: 'unknown', reason: 'personio unparseable feed' };
+            return { state: 'ok', ids: new Set([...xml.matchAll(/<id>(\d+)<\/id>/g)].map(m => m[1])) };
+        })());
+    }
+
+    const board = await boardCache.get(key);
+    if (board.state === 'gone') return result(Liveness.DEAD, 'personio feed 404');
+    if (board.state === 'unknown') return result(Liveness.UNKNOWN, board.reason);
+    return board.ids.has(id)
+        ? result(Liveness.LIVE, 'personio in feed')
+        : result(Liveness.DEAD, 'personio not in feed');
+}
+
 async function checkGeneric(job) {
     const res = await getWithTimeout(job.ApplicationURL);
     if (!res) return result(Liveness.UNKNOWN, 'generic network');
@@ -214,6 +254,7 @@ export async function checkJobLiveness(job, { boardCache = new Map() } = {}) {
         case 'greenhouse': outcome = await checkGreenhouse(target); break;
         case 'lever': outcome = await checkLever(target); break;
         case 'smartrecruiters': outcome = await checkSmartRecruiters(target); break;
+        case 'personio': outcome = await checkPersonio(target, boardCache); break;
         case 'workday': outcome = await checkWorkday(target); break;
         case 'ashby': outcome = await checkAshby(target, boardCache); break;
         default: outcome = await checkGeneric(job);
