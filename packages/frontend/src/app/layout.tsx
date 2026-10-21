@@ -57,13 +57,14 @@ const websiteJsonLd = {
 // the real palette after hydration — a visible flash on every fresh tab.
 const THEME_BOOT_SCRIPT = `(function(){try{var l=${JSON.stringify(lightVars)},d=${JSON.stringify(darkVars)};var m=null;try{m=localStorage.getItem('ej-theme')}catch(e){}if(m!=='dark'&&m!=='light'){m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}var v=m==='dark'?d:l,r=document.documentElement;for(var k in v){r.style.setProperty(k,v[k])}r.setAttribute('data-theme',m)}catch(e){}})();`;
 
-// viewport-fit=cover makes env(safe-area-inset-*) report the iPhone's real
-// insets, so fixed bottom bars (job page Apply bar, filter sheet) clear the
-// home indicator. globals.css pads the sides for landscape notches.
+// Plain device-width viewport. viewport-fit=cover is deliberately not set: in a
+// Safari tab on iOS 26 it changes nothing (measured on device: safe-area insets
+// stay 0 and the layout stays between the status strip and the toolbar). What
+// keeps page content out of those strips is the body scroller on iPhones —
+// see "iPhone: the page scrolls inside <body>" in globals.css.
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  viewportFit: "cover",
 };
 
 export const metadata: Metadata = {

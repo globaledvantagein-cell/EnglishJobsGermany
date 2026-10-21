@@ -9,6 +9,7 @@ import {
   Scale, Server, ShieldAlert, ShieldCheck, Sparkles, Store, Target, Users, Workflow, type LucideIcon,
 } from 'lucide-react';
 import { CATEGORY_ORDER, HOME_CATEGORIES, categorySlug } from '../utils/categorize';
+import { isBodyScroller } from '../utils/scroller';
 import { CAREER_GUIDE_CATEGORY_LABELS } from '../data/careerGuide';
 import CompanyLogo from '../components/CompanyLogo';
 import FieldsDrawer from '../components/seo/FieldsDrawer';
@@ -174,6 +175,7 @@ function useHomeMotion(rootRef: React.RefObject<HTMLDivElement | null>) {
 
     let cancelled = false;
     let ctx: { revert: () => void } | null = null;
+    let cleanupObservers: () => void = () => {};
 
     (async () => {
       const [{ gsap }, { ScrollTrigger }] = await Promise.all([
@@ -182,6 +184,12 @@ function useHomeMotion(rootRef: React.RefObject<HTMLDivElement | null>) {
       ]);
       if (cancelled) return;
       gsap.registerPlugin(ScrollTrigger);
+      // iPhone Safari scrolls the page inside <body> (utils/scroller.ts).
+      // ScrollTrigger treats <body> as the window and would never fire, so
+      // there the same reveal is started by an IntersectionObserver, which
+      // does follow a scrolling <body>. Everywhere else ScrollTrigger is used.
+      const bodyScrolls = isBodyScroller();
+      const observers: IntersectionObserver[] = [];
 
       ctx = gsap.context(() => {
         const fold = window.innerHeight * 0.92;
@@ -190,13 +198,24 @@ function useHomeMotion(rootRef: React.RefObject<HTMLDivElement | null>) {
           if (el.getBoundingClientRect().top < fold) return; // already on screen
           const targets = el.dataset.reveal === 'stagger' ? Array.from(el.children) : [el];
           gsap.set(targets, { opacity: 0, y: 22 });
-          gsap.to(targets, {
+          const tween = {
             opacity: 1, y: 0,
             duration: 0.75, ease: 'power3.out',
             stagger: el.dataset.reveal === 'stagger' ? 0.07 : 0,
-            scrollTrigger: { trigger: el, start: 'top 86%', once: true },
             onComplete: () => gsap.set(targets, { clearProps: 'transform' }),
-          });
+          };
+          if (bodyScrolls) {
+            // 'top 86%' of the viewport == the bottom 14% is excluded.
+            const io = new IntersectionObserver((entries) => {
+              if (!entries.some(e => e.isIntersecting)) return;
+              io.disconnect();
+              gsap.to(targets, tween);
+            }, { rootMargin: '0px 0px -14% 0px', threshold: 0 });
+            io.observe(el);
+            observers.push(io);
+          } else {
+            gsap.to(targets, { ...tween, scrollTrigger: { trigger: el, start: 'top 86%', once: true } });
+          }
         });
 
         root.querySelectorAll<HTMLElement>('[data-count]').forEach(el => {
@@ -211,9 +230,10 @@ function useHomeMotion(rootRef: React.RefObject<HTMLDivElement | null>) {
           });
         });
       }, root);
+      cleanupObservers = () => observers.forEach(o => o.disconnect());
     })();
 
-    return () => { cancelled = true; ctx?.revert(); };
+    return () => { cancelled = true; cleanupObservers(); ctx?.revert(); };
   }, [rootRef]);
 }
 

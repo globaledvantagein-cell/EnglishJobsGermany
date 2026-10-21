@@ -53,7 +53,11 @@ function GoogleAuthButton({
   const [loading, setLoading] = useState(false);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [buttonWidth, setButtonWidth] = useState<number>(MAX_WIDTH);
+  // null until the container has been measured: the Google button is a fixed-
+  // width iframe, so rendering it at MAX_WIDTH first made a ~290px phone card
+  // grow to 400px (flex min-width:auto) — and then we measured that grown
+  // container and kept the 400px button, so the page overflowed to the right.
+  const [buttonWidth, setButtonWidth] = useState<number | null>(null);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -109,23 +113,28 @@ function GoogleAuthButton({
         ref={containerRef}
         style={{
           width: '100%',
+          minWidth: 0,
+          minHeight: 44, // reserve the button's height until it is measured
           display: 'flex',
           justifyContent: 'center',
+          overflow: 'hidden',
           opacity: loading ? 0.6 : 1,
           pointerEvents: loading ? 'none' : 'auto',
           transition: 'opacity 0.18s',
         }}
       >
-        <GoogleLogin
-          onSuccess={handleSuccess}
-          onError={() => setError('Google sign-in failed')}
-          theme="outline"
-          size={size}
-          text={text ?? (mode === 'signup' ? 'signup_with' : 'signin_with')}
-          shape="rectangular"
-          width={String(buttonWidth)}
-          useOneTap={false}
-        />
+        {buttonWidth != null && (
+          <GoogleLogin
+            onSuccess={handleSuccess}
+            onError={() => setError('Google sign-in failed')}
+            theme="outline"
+            size={size}
+            text={text ?? (mode === 'signup' ? 'signup_with' : 'signin_with')}
+            shape="rectangular"
+            width={String(buttonWidth)}
+            useOneTap={false}
+          />
+        )}
       </div>
 
       {mode === 'signup' && <p

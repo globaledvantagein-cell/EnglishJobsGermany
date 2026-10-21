@@ -166,16 +166,20 @@ export default function Layout({ children }: { children: ReactNode }) {
           }}
         >
           {/* Logo — shared lockup (components/BrandLogo). */}
-          <BrandLogo
-            size={isMobileNav ? 'sm' : 'md'}
-            href={effIsAdmin ? '/admin' : '/'}
-            tagline={!isMobileNav}
-            badge={effIsAdmin ? 'Admin' : undefined}
-          />
+          {/* The desktop/mobile switch is CSS (.nav-d / .nav-m), not
+              useMediaQuery: that hook is false on the server and first
+              render, so phones got the wide desktop nav in the HTML and
+              shrank the whole page until JS loaded. */}
+          <div className="nav-d" style={{ display: 'contents' }}>
+            <BrandLogo size="md" href={effIsAdmin ? '/admin' : '/'} tagline badge={effIsAdmin ? 'Admin' : undefined} />
+          </div>
+          <div className="nav-m" style={{ display: 'contents' }}>
+            <BrandLogo size="sm" href={effIsAdmin ? '/admin' : '/'} tagline={false} badge={effIsAdmin ? 'Admin' : undefined} />
+          </div>
 
-          {!isMobileNav && (
+          <div className="nav-d" style={{ display: 'contents' }}>
             <DesktopNav links={links} isActive={isActive} unreadFeedback={unreadFeedback} isPremium={effIsPremium} />
-          )}
+          </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
@@ -195,23 +199,25 @@ export default function Layout({ children }: { children: ReactNode }) {
               <span className="theme-icon theme-icon--dark" aria-hidden="true"><Sun size={15} /></span>
             </button>
 
-            {!isMobileNav && effIsAuthenticated && (
-              <UserMenu userName={effUser?.name} isAdmin={effIsAdmin} onLogout={logout} />
+            {effIsAuthenticated && (
+              <div className="nav-d" style={{ display: 'contents' }}>
+                <UserMenu userName={effUser?.name} isAdmin={effIsAdmin} onLogout={logout} />
+              </div>
             )}
-            {!isMobileNav && !effIsAuthenticated && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {!effIsAuthenticated && (
+              <div className="nav-d" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Link to="/login"><Button variant="ghost" size="sm">Log in</Button></Link>
                 <Link to="/signup"><Button size="sm">Sign up</Button></Link>
               </div>
             )}
 
-            {isMobileNav && (
+            {(
               <button
                 onClick={() => (drawerOpen ? closeDrawer() : setDrawerOpen(true))}
                 aria-label={drawerOpen ? 'Close menu' : 'Open menu'}
                 aria-expanded={drawerOpen}
                 aria-controls="mobile-nav-drawer"
-                className="no-touch-expand"
+                className="no-touch-expand nav-m"
                 style={{
                   width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
                   background: 'none', border: '1px solid var(--border)', borderRadius: 8,

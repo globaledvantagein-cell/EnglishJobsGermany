@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { ArticleHeading } from '@/lib/markdown';
+import { getScroller } from '@/utils/scroller';
 
 /**
  * Auto-generated table of contents for an article.
@@ -47,8 +48,9 @@ export default function TableOfContents({ headings }: { headings: ArticleHeading
     const el = document.getElementById(id);
     if (!el) return;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const top = el.getBoundingClientRect().top + window.scrollY - 90;
-    window.scrollTo({ top, behavior: reduce ? 'auto' : 'smooth' });
+    const scroller = getScroller();
+    const top = el.getBoundingClientRect().top + scroller.scrollTop - 90;
+    scroller.scrollTo({ top, behavior: reduce ? 'auto' : 'smooth' });
     history.replaceState(null, '', `#${id}`);
     setActiveId(id);
     setOpen(false);

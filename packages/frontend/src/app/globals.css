@@ -653,6 +653,20 @@ button:focus {
   backdrop-filter: blur(20px) saturate(1.4);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
 }
+/* Desktop vs phone nav pieces (components/Layout.tsx). !important beats the
+   inline display the wrappers/buttons carry. */
+@media (max-width: 767px) { .nav-d { display: none !important; } }
+@media (min-width: 768px) { .nav-m { display: none !important; } }
+
+/* Phones: fully solid bar. At 82% alpha the page text scrolled visibly behind
+   the logo and buttons (and Safari 26 composites blur unreliably). */
+@media (max-width: 767px) {
+  .nav-blur {
+    background: var(--paper);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
 
 /* Nav link: sketched underline that draws in when active */
 .nav-tab {
@@ -1041,6 +1055,9 @@ button:focus {
 /* ── Mobile nav drawer ─────────────────────────────── */
 .nav-drawer-overlay {
   position: fixed;
+  /* inset:0, NOT 100vh: on iOS vh is the largest viewport (735pt) while the
+     visible area is 695pt with Safari's toolbar expanded, which pushed bottom
+     bars behind the toolbar (measured on device). inset follows the real one. */
   inset: 0;
   background: rgba(0, 0, 0, 0.55);
   /* 180/181: portaled to <body> (MobileDrawer), so it must out-rank the
@@ -1055,7 +1072,7 @@ button:focus {
   right: 0;
   bottom: 0;
   width: min(320px, 88vw);
-  background: var(--bg-surface);
+  background: var(--bg-base);
   border-left: 1px solid var(--border);
   z-index: 181;
   display: flex;
@@ -1090,7 +1107,7 @@ button:focus {
    absolute child of a transparent fixed wrapper), and the strip under the
    toolbar continues the footer. See the component for sources. */
 .m-filters {
-  position: fixed; inset: 0; z-index: 200;
+  position: fixed; inset: 0; z-index: 200; /* inset, not 100vh: see .nav-drawer-overlay */
   display: flex; flex-direction: column;
   background: var(--bg-base);
   animation: mFiltersIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -1110,13 +1127,15 @@ button:focus {
   scrollbar-width: none;
   display: flex; flex-direction: column; gap: 10px;
   /* bottom: clears the fixed footer (~72px) plus the home indicator */
-  padding: 16px max(16px, env(safe-area-inset-right)) calc(96px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  padding: 16px max(16px, env(safe-area-inset-right)) calc(96px + env(safe-area-inset-bottom) + var(--chrome-inset-bottom, 0px)) max(16px, env(safe-area-inset-left));
 }
 .m-filters-body::-webkit-scrollbar { display: none; }
 .m-filters-foot {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 201;
   display: flex; align-items: center; gap: 12px;
-  padding: 12px max(16px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  /* + --chrome-inset-bottom (ViewportChromeInset): lifts the buttons above
+     Safari's floating toolbar, which otherwise covers the bottom of the layout. */
+  padding: 12px max(16px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom) + var(--chrome-inset-bottom, 0px)) max(16px, env(safe-area-inset-left));
   background: var(--bg-base); border-top: 1px solid var(--border);
 }
 .m-filters-clear {
@@ -1131,7 +1150,7 @@ button:focus {
 
 .bottom-sheet-overlay {
   position: fixed;
-  inset: 0;
+  inset: 0; /* not 100vh: see .nav-drawer-overlay */
   background: rgba(0, 0, 0, 0.55);
   z-index: 200;
   animation: fadeIn 0.18s ease both;
@@ -1143,18 +1162,15 @@ button:focus {
   left: 0;
   right: 0;
   bottom: 0;
-  background: var(--bg-surface);
+  background: var(--bg-base);
   border-top: 1px solid var(--border);
   border-radius: 16px 16px 0 0;
   z-index: 201;
   display: flex;
   flex-direction: column;
-  /* dvh tracks the visible area (iOS 90vh is taller than the screen with
-     Safari's toolbars showing); the padding clears the home indicator and
-     iOS 26's floating toolbar (--chrome-inset-bottom, ViewportChromeInset). */
-  max-height: 90vh;
-  max-height: 85dvh;
-  padding-bottom: calc(env(safe-area-inset-bottom) + var(--chrome-inset-bottom, 0px));
+  max-height: 85vh;
+  max-height: 85dvh; /* dvh: the visible area, not the largest viewport */
+  padding-bottom: env(safe-area-inset-bottom);
   animation: slideInUp 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -1221,7 +1237,7 @@ button:focus {
 /* ── Mobile detail slide-in overlay ──────────────────── */
 .mobile-detail-overlay {
   position: fixed;
-  inset: 0;
+  inset: 0; /* not 100vh: see .nav-drawer-overlay */
   z-index: 100;
   background: var(--bg-base, #FAF7F1);
     overflow: hidden;
@@ -3017,25 +3033,74 @@ html { background: var(--paper); }
    the root background takes the colour of what touches the bottom edge, so
    the strip under the glass is solid and matches. visibility (not display)
    keeps the scroll position. iOS only: other browsers draw their own chrome.
-   Overlays: .m-filters, .nav-drawer, .bottom-sheet (option pickers), the
-   admin sidebar / drawers / dialogs, and public modals marked .ui-modal. */
+   EVERY overlay must be in the lists below — a missed one (the Feedback
+   sheet was) leaves the page showing under the toolbar:
+   .m-filters, .nav-drawer, .bottom-sheet (option pickers), the mobile
+   Feedback sheet (.fb-panel while open), .mobile-detail-overlay, match
+   sheets/dialogs (.mx-sheet, .mx-dialog), the admin sidebar / drawers /
+   dialogs, and public modals marked .ui-modal. New overlay? Add it to all
+   three groups. */
 @supports (-webkit-touch-callout: none) {
+  /* strip colour = what touches the bottom edge: solid full-screen layers */
   html:has(.m-filters), html:has(.m-filters) body,
-  html:has(.adm-drawer-root), html:has(.adm-drawer-root) body { background: var(--bg-base); }
+  html:has(.adm-drawer-root), html:has(.adm-drawer-root) body,
   html:has(.nav-drawer), html:has(.nav-drawer) body,
   html:has(.adm-shell[data-narrow-open='true']), html:has(.adm-shell[data-narrow-open='true']) body,
-  html:has(.bottom-sheet), html:has(.bottom-sheet) body { background: var(--bg-surface); }
+  html:has(.bottom-sheet), html:has(.bottom-sheet) body,
+  html:has(.mobile-detail-overlay), html:has(.mobile-detail-overlay) body,
+  html:has(.mx-sheet), html:has(.mx-sheet) body { background: var(--bg-base); }
+  /* the Feedback sheet and the city/category side panel are the surface colour */
+  html:has(.feedback-fab[data-mobile='true'] .fb-panel[data-open='true']),
+  html:has(.feedback-fab[data-mobile='true'] .fb-panel[data-open='true']) body,
+  html:has(.ls-drawer:popover-open), html:has(.ls-drawer:popover-open) body { background: var(--bg-surface); }
   /* centred dialogs: the strip matches the dimmed page */
   html:has(.adm-overlay), html:has(.adm-overlay) body,
+  html:has(.mx-dialog), html:has(.mx-dialog) body,
   html:has(.ui-modal), html:has(.ui-modal) body { background: color-mix(in srgb, var(--bg-base) 55%, #000); }
 
   html:is(:has(.m-filters), :has(.nav-drawer), :has(.bottom-sheet), :has(.adm-shell[data-narrow-open='true']),
-          :has(.adm-drawer-root), :has(.adm-overlay), :has(.ui-modal)) body { visibility: hidden; }
+          :has(.adm-drawer-root), :has(.adm-overlay), :has(.ui-modal), :has(.mobile-detail-overlay),
+          :has(.mx-sheet), :has(.mx-dialog), :has(.ls-drawer:popover-open),
+          :has(.feedback-fab[data-mobile='true'] .fb-panel[data-open='true'])) body { visibility: hidden; }
   html:is(:has(.m-filters), :has(.nav-drawer), :has(.bottom-sheet), :has(.adm-shell[data-narrow-open='true']),
-          :has(.adm-drawer-root), :has(.adm-overlay), :has(.ui-modal)) body::before,
+          :has(.adm-drawer-root), :has(.adm-overlay), :has(.ui-modal), :has(.mobile-detail-overlay),
+          :has(.mx-sheet), :has(.mx-dialog), :has(.ls-drawer:popover-open),
+          :has(.feedback-fab[data-mobile='true'] .fb-panel[data-open='true'])) body::before,
   html:is(:has(.m-filters), :has(.nav-drawer), :has(.bottom-sheet), :has(.adm-shell[data-narrow-open='true']),
-          :has(.adm-drawer-root), :has(.adm-overlay), :has(.ui-modal)) body::after { display: none; }
+          :has(.adm-drawer-root), :has(.adm-overlay), :has(.ui-modal), :has(.mobile-detail-overlay),
+          :has(.mx-sheet), :has(.mx-dialog), :has(.ls-drawer:popover-open),
+          :has(.feedback-fab[data-mobile='true'] .fb-panel[data-open='true'])) body::after { display: none; }
   .m-filters, .nav-drawer, .nav-drawer-overlay, .bottom-sheet, .bottom-sheet-overlay,
-  .adm-shell[data-narrow-open='true'] .adm-sidebar, .adm-drawer-root, .adm-overlay, .ui-modal { visibility: visible; }
+  .adm-shell[data-narrow-open='true'] .adm-sidebar, .adm-drawer-root, .adm-overlay, .ui-modal,
+  .mobile-detail-overlay, .mx-sheet, .mx-dialog, .ls-drawer:popover-open,
+  .feedback-fab[data-mobile='true'] .fb-panel[data-open='true'], .fb-backdrop { visibility: visible; }
 }
 
+
+/* ── iPhone: the page scrolls inside <body>, not the document ──────────────
+   iOS 26 Safari lays the page out only between its status strip and toolbar
+   but draws the scrolling DOCUMENT under both — page text visible behind the
+   Dynamic Island / status bar and behind the toolbar. Measured on device:
+   innerHeight 695 of 852, safe-area insets 0 (viewport-fit=cover changes
+   nothing in a Safari tab). If the document never scrolls, only the solid
+   html background is drawn in those strips (the same look as when an overlay
+   is open). So on phones the viewport is locked and <body> is the scroller.
+   - existing `document.body.style.overflow='hidden'` scroll locks keep working
+   - scroll-padding-top = nav height, so Next's route-change scrollIntoView
+     lands under the sticky nav instead of 61px too far
+   - JS that read window scroll goes through utils/scroller.ts */
+@media (max-width: 767px) {
+  @supports (-webkit-touch-callout: none) {
+    html { overflow: hidden; }
+    body {
+      position: fixed; inset: 0; min-height: 0;
+      overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      scroll-padding-top: 61px;
+    }
+    /* Safari 26 colours its status strip from the fixed/sticky element it finds
+       at the top edge; a pseudo-element hit-tests as its host, so the
+       full-screen paper-grain layers (body::before/::after) hide the header
+       from it. Decorative only — off on iPhone. */
+    body::before, body::after { display: none; }
+  }
+}

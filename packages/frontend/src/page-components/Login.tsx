@@ -79,8 +79,10 @@ export default function Login({ mode = 'login' }: { mode?: GoogleAuthMode }) {
       </div>
 
       {/* Auth panel */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
-        <div className="anim-scale" style={{ width: '100%', maxWidth: 400 }}>
+      {/* minWidth:0 — a flex item defaults to min-width:auto and would grow to
+          fit its widest child (the Google button) instead of shrinking to the phone. */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
+        <div className="anim-scale" style={{ width: '100%', minWidth: 0, maxWidth: 400 }}>
           <div className="md:hidden" style={{ textAlign: 'center', marginBottom: 28 }}>
             <div
               style={{
