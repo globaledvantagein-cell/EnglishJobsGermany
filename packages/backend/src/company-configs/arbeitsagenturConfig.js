@@ -33,10 +33,17 @@ const API_HEADERS = {
     'Accept': 'application/json',
 };
 const SEEN_SOURCE = 'arbeitsagentur';
-const PAGE_SIZE = 100;
-const MAX_PAGES_PER_QUERY = 10;     // the API stops paging well before this for niche titles
+// Measured against the live API (2026-10-21): size up to 500 is accepted (1000
+// is a 400), paging stops at page 100, and no throttling showed on 20
+// back-to-back calls. The 50 queries below match ~16k unique postings over 28
+// days; at 500 per page that is ~75 list calls instead of ~250.
+const PAGE_SIZE = 500;
+const MAX_PAGES_PER_QUERY = 20;     // 10k per query; the largest ("Consultant") has ~2.5k
 const PUBLISHED_WITHIN_DAYS = 28;   // older postings are mostly filled already
-const MAX_QUEUE = 4000;             // per run: bounds detail requests and AI spend
+// Per run. The backlog is bigger than one day's AI budget, so each run takes
+// the next slice: postings not reached are never marked seen and come back
+// tomorrow. Bounds detail requests and leaves budget for the ATS boards.
+const MAX_QUEUE = Number(process.env.ARBEITSAGENTUR_MAX_PER_RUN) || 5000;
 const REQUEST_DELAY_MS = 400;       // polite pacing for a public government API
 const REQUEST_TIMEOUT_MS = 30000;
 

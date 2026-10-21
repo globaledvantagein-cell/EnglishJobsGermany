@@ -1,6 +1,7 @@
 import { connectToDb, saveValidatorRun } from '../db/index.js';
 import { refreshJobsCache, refreshRemoteJobsCache } from '../cache/index.js';
 import { checkJobLiveness, Liveness } from '../core/jobLiveness.js';
+import { mapWithConcurrency } from '../utils/concurrency.js';
 
 // ─── Validator ─────────────────────────────────────────────────────────────
 //
@@ -34,20 +35,6 @@ const progress = { startedAt: null, source: null, collection: null, checked: 0, 
 /** Snapshot for GET /api/admin/validator. */
 export function getValidatorStatus() {
     return { running: isValidating, ...progress };
-}
-
-/** Runs `worker` over `items` with at most `limit` in flight. */
-async function mapWithConcurrency(items, limit, worker) {
-    const results = new Array(items.length);
-    let next = 0;
-    const lanes = Array.from({ length: Math.min(limit, items.length) }, async () => {
-        while (next < items.length) {
-            const index = next++;
-            results[index] = await worker(items[index], index);
-        }
-    });
-    await Promise.all(lanes);
-    return results;
 }
 
 /**

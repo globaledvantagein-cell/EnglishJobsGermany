@@ -4,7 +4,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import cron from 'node-cron';
 import { client, connectToDb } from './db/index.js';
-import { runScraper } from './cron/runScraper.js';
+import { runScraper, resumeInterruptedScrape, isScraperRunning } from './cron/runScraper.js';
 import { runValidator } from './cron/runValidator.js';
 import { runWeeklyDigest } from './cron/runWeeklyDigest.js';
 import { runWeeklyReset } from './cron/runWeeklyReset.js';
@@ -194,8 +194,12 @@ app.listen(PORT, async () => {
         }));
 
         console.log("✅ Cron tasks are scheduled.");
-        console.log('--- Running initial scrape on start... ---');
-        // runScraper();
+
+        // A deploy or crash mid-scrape used to throw the rest of the run away
+        // until the next 06:00. Pick up the sources it had not finished.
+        runIfEnabled('cronScraper', () => {
+            resumeInterruptedScrape().catch(err => console.error('[Scraper] resume failed:', err));
+        })();
 
     } catch (err) {
         console.error("Failed to start server or connect to DB", err);
@@ -205,6 +209,7 @@ app.listen(PORT, async () => {
 
 process.on('SIGINT', async () => {
     console.log('Shutting down server and database connection...');
+    if (isScraperRunning()) console.warn('[Scraper] Shutting down mid-scrape — the unfinished sources resume on the next boot.');
     await client.close();
     process.exit(0);
 });

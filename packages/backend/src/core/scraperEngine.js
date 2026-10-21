@@ -5,11 +5,19 @@ import { saveJobs, findSavedJobsByJobIDs } from '../db/index.js';
 import { extractAndStoreRequirements } from '../gemma/index.js';
 import { categorizeJobs } from './categorizer/index.js';
 import { isGeminiBudgetExhausted } from '../gemini/geminiClient.js';
+import { getTotalKeyCount } from '../gemini/keyManager.js';
 import { upsertRemoteJob } from '../cache/remoteJobsCache.js';
+import { upsertJob } from '../cache/jobsCache.js';
 import { resolveWorkplace } from '../utils/filterNormalizer.js';
-import { sleep } from '../utils.js';
+import { mapWithConcurrency } from '../utils/concurrency.js';
 import { pingIndexNowAsync, jobUrl } from '../utils/indexNow.js';
-import { deferScrapeStates, commitScrapeStates, discardScrapeStates } from './scrapeState.js';
+import { withDeferredScrapeStates, commitScrapeStates, discardScrapeStates } from './scrapeState.js';
+
+// Jobs analyzed at once within one source. The Gemini key manager reserves a
+// key per request and makes callers wait when every key is at its per-minute
+// cap, so this only needs to be high enough to keep all keys busy while other
+// jobs are fetching descriptions or waiting on a slow response.
+const JOB_CONCURRENCY = Number(process.env.SCRAPER_JOB_CONCURRENCY) || Math.max(2, getTotalKeyCount() * 2);
 
 /**
  * Kick off Gemma requirement extraction for the auto-published jobs in a batch.
@@ -56,8 +64,12 @@ async function scheduleAutoPublishEnrichment(savedBatch, siteName, collectionNam
         // in polling mode, so push remote rows into the remote cache explicitly.
         // upsertRemoteJob is idempotent — a duplicate from the change stream is
         // a no-op replace, not a second entry.
-        if (collectionName === 'remoteJobs') {
-            for (const doc of savedDocs) upsertRemoteJob(doc);
+        // Same for the German cache: the job is live now, so it belongs on the
+        // site now. Waiting for the Gemma extraction's upsert left it hidden
+        // whenever Gemma failed, until the next full cache reload.
+        for (const doc of savedDocs) {
+            if (collectionName === 'remoteJobs') upsertRemoteJob(doc);
+            else upsertJob(doc);
         }
 
         // Announce the new live URLs to IndexNow (Bing/Yandex/Seznam/Naver).
@@ -73,7 +85,32 @@ async function scheduleAutoPublishEnrichment(savedBatch, siteName, collectionNam
     }
 }
 
-export async function scrapeSite(siteConfig, existingIDsMap, crossEntityKeys) {
+export function scrapeSite(siteConfig, existingIDsMap, crossEntityKeys) {
+    return withDeferredScrapeStates(() => scrapeSiteDeferred(siteConfig, existingIDsMap, crossEntityKeys));
+}
+
+/** Saves one job that passed processJob() and schedules its enrichment. */
+async function saveNewJob(job, siteName, scrapeStartTime) {
+    const jobToSave = { ...job, scrapedAt: scrapeStartTime };
+    console.log(`   -> [${siteName}] Saving: ${job.JobTitle}`);
+    await saveJobs([jobToSave]);
+
+    // Auto-published jobs are live the moment they're saved, so they need the
+    // same enrichment an admin approval would have triggered: Gemma
+    // requirements + the filter* fields resolveAll() derives from them. This
+    // has to happen HERE rather than in processJob() — the models it returns
+    // have no _id until saveJobs() upserts them, and
+    // extractAndStoreRequirements() no-ops without one.
+    //
+    // saveJobs() routes fully-remote roles to `remoteJobs`, so the enrichment
+    // must look them up in the collection they landed in — otherwise
+    // findSavedJobsByJobIDs finds nothing and they silently miss requirements
+    // + categorization.
+    const isRemote = (jobToSave.filterWorkplace ?? resolveWorkplace(jobToSave)) === 'remote';
+    await scheduleAutoPublishEnrichment([jobToSave], siteName, isRemote ? 'remoteJobs' : 'jobs');
+}
+
+async function scrapeSiteDeferred(siteConfig, existingIDsMap, crossEntityKeys) {
     const siteName = siteConfig.siteName;
     const existingIDs = existingIDsMap.get(siteName) || new Set();
     const allNewJobs = [];
@@ -87,10 +124,10 @@ export async function scrapeSite(siteConfig, existingIDsMap, crossEntityKeys) {
     let budgetExhausted = false;
     let processedCount = 0;
 
-    console.log(`\n--- Starting scrape for [${siteName}] ---`);
+    console.log(`\n--- Starting scrape for [${siteName}] (${JOB_CONCURRENCY} jobs at a time) ---`);
 
-    // Board hashes are written only once every queued job has been processed.
-    deferScrapeStates();
+    // Board hashes are written only once every queued job has been processed
+    // (buffered by the withDeferredScrapeStates() wrapper in scrapeSite()).
     let completed = false;
 
     try {
@@ -110,73 +147,39 @@ export async function scrapeSite(siteConfig, existingIDsMap, crossEntityKeys) {
                 totalJobs = siteConfig.getTotal(data);
             }
 
-            // Batch size 1 = Sequential processing
-            const batchSize = 1; 
-            
-            for (let i = 0; i < jobs.length; i += batchSize) {
+            // JOB_CONCURRENCY jobs in flight; the shared Gemini key pool paces
+            // the AI calls. Each job is saved the moment it passes, so a run
+            // cut short keeps everything it finished.
+            await mapWithConcurrency(jobs, JOB_CONCURRENCY, async (rawJob, index) => {
+                if (budgetExhausted) return;
                 // Checked BEFORE any AI call: once every cascade model is spent
                 // on every key, further jobs can only fail. Stop cleanly and let
                 // tomorrow's run pick them up.
                 if (isGeminiBudgetExhausted()) {
-                    const jobNumber = offset + i + 1;
-                    const remaining = jobs.length - i;
-                    console.warn(
-                        `[Scraper] AI budget exhausted. Stopping scrape at job #${jobNumber}. ` +
-                        `Processed ${processedCount} jobs, ${remaining} remaining will be retried tomorrow.`
-                    );
                     budgetExhausted = true;
-                    break;
+                    console.warn(
+                        `[Scraper] [${siteName}] AI budget exhausted at job #${offset + index + 1}. ` +
+                        `Processed ${processedCount} jobs; the rest will be retried tomorrow.`
+                    );
+                    return;
                 }
 
-                const batch = jobs.slice(i, i + batchSize);
+                const jobTitle = rawJob._source ? rawJob._source.title : (rawJob.titel || rawJob.title || rawJob.PositionTitle || rawJob.job_title || rawJob.name || rawJob.stellenangebotsTitel || rawJob.jobFields?.jobTitle);
+                console.log(`\n  [${siteName}] #${offset + index + 1}: Analyzing: ${jobTitle}`);
 
-                batch.forEach((rawJob, index) => {
-                    const jobTitle = rawJob._source ? rawJob._source.title : (rawJob.titel || rawJob.title || rawJob.PositionTitle || rawJob.job_title || rawJob.name || rawJob.jobFields?.jobTitle);
-                    const jobNumber = offset + i + index + 1;
-                    console.log(`\n  #${jobNumber}: Analyzing: ${jobTitle}`);
-                });
-
-                const jobPromises = batch.map(rawJob => 
-                    processJob(rawJob, siteConfig, existingIDs, sessionHeaders, null, crossEntityKeys)
-                );
-                
-                const processedJobs = await Promise.all(jobPromises);
-                processedCount += batch.length;
-                const newJobsInBatch = processedJobs.filter(job => job !== null);
-
-                if (newJobsInBatch.length > 0) {
-                    console.log(`   -> Saving ${newJobsInBatch.length} valid job(s)...`);
-                    const jobsToSave = newJobsInBatch.map(job => ({ ...job, scrapedAt: scrapeStartTime }));
-                    await saveJobs(jobsToSave);
-
-                    // Auto-published jobs are live the moment they're saved, so they
-                    // need the same enrichment an admin approval would have triggered:
-                    // Gemma requirements + the filter* fields resolveAll() derives from
-                    // them. This has to happen HERE rather than in processJob() — the
-                    // models it returns have no _id until saveJobs() upserts them, and
-                    // extractAndStoreRequirements() no-ops without one.
-                    //
-                    // saveJobs() routes fully-remote roles to `remoteJobs`, so the
-                    // enrichment must look them up in the collection they landed in —
-                    // otherwise findSavedJobsByJobIDs finds nothing and they silently
-                    // miss requirements + categorization.
-                    const remoteSaved = jobsToSave.filter(job => (job.filterWorkplace ?? resolveWorkplace(job)) === 'remote');
-                    const mainSaved   = jobsToSave.filter(job => (job.filterWorkplace ?? resolveWorkplace(job)) !== 'remote');
-
-                    await scheduleAutoPublishEnrichment(mainSaved, siteName, 'jobs');
-                    await scheduleAutoPublishEnrichment(remoteSaved, siteName, 'remoteJobs');
-
-                    allNewJobs.push(...newJobsInBatch);
-                    newJobsInBatch.forEach(job => existingIDs.add(job.JobID));
+                try {
+                    const job = await processJob(rawJob, siteConfig, existingIDs, sessionHeaders, null, crossEntityKeys);
+                    processedCount += 1;
+                    if (!job) return;
+                    existingIDs.add(job.JobID);
+                    await saveNewJob(job, siteName, scrapeStartTime);
+                    allNewJobs.push(job);
+                } catch (jobError) {
+                    // One bad job must not take its siblings down with it.
+                    console.error(`[${siteName}] job #${offset + index + 1} failed: ${jobError.message}`);
                 }
+            });
 
-                // 2s between jobs is safe: 3 keys × 15 RPM = 45 RPM capacity.
-                // The AI layer's KeyState handles any burst automatically.
-                if (i + batchSize < jobs.length) {
-                    await sleep(2000); 
-                }
-            }
-            
             if (budgetExhausted) break;
 
             hasMore = shouldContinuePaging(siteConfig, jobs, offset, limit, totalJobs);

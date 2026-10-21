@@ -20,7 +20,7 @@ export const adminMaintenanceRouter = Router();
 adminMaintenanceRouter.use(verifyToken, verifyAdmin);
 
 adminMaintenanceRouter.get('/', async (req, res) => {
-    const tasks = Object.entries(MAINTENANCE_TASKS).map(([key, t]) => ({ key, label: t.label, description: t.description }));
+    const tasks = Object.entries(MAINTENANCE_TASKS).map(([key, t]) => ({ key, kind: t.kind, label: t.label, description: t.description }));
     const runs = await getRecentMaintenanceRuns(10).catch(() => []);
     res.status(200).json({ tasks, status: getMaintenanceStatus(), runs });
 });

@@ -17,8 +17,15 @@ export const SITES_CONFIG = [
 
 
   // --------------------------------------
+  // Sources run SCRAPER_SOURCE_CONCURRENCY at a time in this order (see
+  // cron/runScraper.js). The feeds sit near the front so they start in the
+  // first lanes instead of waiting for every ATS board; Arbeitsagentur caps
+  // its own per-run share of the AI budget (ARBEITSAGENTUR_MAX_PER_RUN).
   greenhouseConfig,
+  arbeitsagenturConfig,
   ashbyConfig,
+  softgardenConfig,
+  joinConfig,
   leverConfig ,
   workdayConfig,
   workableConfig,
@@ -26,10 +33,6 @@ export const SITES_CONFIG = [
   personioConfig,
   smartRecruitersConfig,
   teamtailorConfig,
-  softgardenConfig,
-  joinConfig,
-  // Last: the largest queue, so a Gemini budget exhaustion never starves the ATS boards above.
-  arbeitsagenturConfig
 
 
 

@@ -17,6 +17,7 @@
 // never collide: remote writes ats:"greenhouse", we write ats:"de_greenhouse".
 
 import { createHash } from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { connectToDb } from '../db/connection.js';
 
 const STATE_COLLECTION = 'scrapeState';
@@ -74,7 +75,8 @@ export async function saveScrapeStatesBulk(ats, states) {
     if (!states || states.length === 0) return 0;
 
     // Inside a scrapeSite() run the write waits until the site has finished;
-    // see deferScrapeStates() below.
+    // see withDeferredScrapeStates() below.
+    const deferred = deferredStore.getStore();
     if (deferred) {
         deferred.push([ats, states]);
         return 0;
@@ -112,26 +114,31 @@ export async function saveScrapeStatesBulk(ats, states) {
 // unchanged and skipped them, so their unprocessed jobs never arrived until
 // the company happened to edit its board. scrapeSite() now defers the writes
 // and commits them only when the site was drained completely.
+//
+// The buffer lives in AsyncLocalStorage, one per scrapeSite() call: sources
+// scrape side by side, and a shared buffer would let one site commit (or
+// discard) another site's boards.
 
-let deferred = null;
+const deferredStore = new AsyncLocalStorage();
 
-/** Start buffering saveScrapeStatesBulk() calls. */
-export function deferScrapeStates() {
-    deferred = [];
+/** Runs `fn` with saveScrapeStatesBulk() calls buffered for this call only. */
+export function withDeferredScrapeStates(fn) {
+    return deferredStore.run([], fn);
 }
 
-/** Write everything buffered since deferScrapeStates(). */
+/** Write everything buffered in the current withDeferredScrapeStates() call. */
 export async function commitScrapeStates() {
-    const pending = deferred || [];
-    deferred = null;
-    for (const [ats, states] of pending) await saveScrapeStatesBulk(ats, states);
+    const pending = (deferredStore.getStore() || []).splice(0);
+    // Outside the store, or saveScrapeStatesBulk() would just buffer them again.
+    await deferredStore.exit(async () => {
+        for (const [ats, states] of pending) await saveScrapeStatesBulk(ats, states);
+    });
 }
 
 /** Drop the buffer, so the next run re-checks these boards. */
 export function discardScrapeStates() {
-    const dropped = (deferred || []).reduce((n, [, states]) => n + states.length, 0);
-    deferred = null;
-    return dropped;
+    const pending = (deferredStore.getStore() || []).splice(0);
+    return pending.reduce((n, [, states]) => n + states.length, 0);
 }
 
 // ─── Seen postings (aggregated feeds) ──────────────────────────────────────

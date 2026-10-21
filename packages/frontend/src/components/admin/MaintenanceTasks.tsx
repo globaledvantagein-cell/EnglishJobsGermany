@@ -20,8 +20,9 @@ import { withFeature } from '../FeatureGate';
 import { useAdminUi } from './AdminUiContext';
 import { Btn, Dot, errorText, fmtAge, fmtNumber } from './primitives';
 
-interface Task { key: string; label: string; description: string }
-interface Status { running: boolean; task: string | null; startedAt: string | null; stage: string | null; done: number; total: number }
+interface Task { key: string; kind: 'scraper' | 'db'; label: string; description: string }
+interface Progress { startedAt: string; stage: string | null; done: number; total: number }
+interface Status { running: boolean; active: Record<string, Progress> }
 interface Counted { processed?: number; succeeded?: number; failed?: number }
 interface RunResult { reason?: string; keyWarning?: string; requirements?: Counted; categories?: Counted; jobs?: Counted; remoteJobs?: Counted; sources?: number; newJobs?: number }
 interface Run { task: string; label: string; startedAt: string; finishedAt: string; ok: boolean; result: RunResult | null }
@@ -34,7 +35,7 @@ const ROW_STYLE = { padding: '8px 10px', borderBottom: '1px solid var(--adm-line
 function describeRun(run: Run): string {
   const r: RunResult = run.result || {};
   if (!run.ok) return r.reason || 'Failed. Check the server log.';
-  if (run.task === 'run-scraper') return `${fmtNumber(r.sources)} sources · ${fmtNumber(r.newJobs)} new jobs`;
+  if (run.task.startsWith('run-scraper')) return `${fmtNumber(r.sources)} sources · ${fmtNumber(r.newJobs)} new jobs`;
   if (run.task === 'fill-ai-data') {
     const q = r.requirements || {};
     const c = r.categories || {};
@@ -84,15 +85,26 @@ function MaintenanceTasks() {
     }
   };
 
-  const s = data?.status;
-  const pct = s && s.total ? Math.round((s.done / s.total) * 100) : 0;
+  const active = data?.status.active || {};
+  const activeKinds = (data?.tasks || []).filter(t => active[t.key]).map(t => t.kind);
+
+  /** Why this task's button is disabled right now, or null. Mirrors taskRunner.js. */
+  const blockedBy = (task: Task): string | null => {
+    if (active[task.key]) return null;
+    if (activeKinds.includes('db')) return 'A database task is running';
+    if (task.kind === 'db' && activeKinds.length > 0) return 'Another task is running';
+    return null;
+  };
 
   return (
     <>
       {error && <div className="adm-muted" style={{ ...ROW_STYLE, fontSize: 12 }}>Could not load background tasks: {error}</div>}
       {(data?.tasks || []).map(task => {
         const last = data?.runs.find(r => r.task === task.key);
-        const isThis = running && s?.task === task.key;
+        const s = active[task.key];
+        const isThis = Boolean(s);
+        const pct = s && s.total ? Math.round((s.done / s.total) * 100) : 0;
+        const blocked = blockedBy(task);
         const tone = isThis ? 'accent' : !last ? 'neutral' : last.ok ? 'ok' : 'bad';
         return (
           <div key={task.key} className="adm-row" style={ROW_STYLE}>
@@ -112,7 +124,7 @@ function MaintenanceTasks() {
               )}
             </div>
             <Btn size="sm" onClick={() => start(task)} loading={starting === task.key || isThis}
-              disabled={running && !isThis} title={running && !isThis ? 'Another task is running' : task.description}>
+              disabled={Boolean(blocked)} title={blocked || task.description}>
               {isThis ? `${pct}%` : 'Run'}
             </Btn>
           </div>

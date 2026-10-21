@@ -4,3 +4,7 @@ node_modules/
 .env.local
 *.log
 .DS_Store
+
+# local admin-token helper (never commit)
+_tok.mjs
+packages/backend/_tok.mjs
