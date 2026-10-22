@@ -47,7 +47,12 @@ const nextConfig: NextConfig = {
       destination,
       permanent: false,
     }));
-    return [...categoryRedirects, ...adminRedirects];
+    // Today's Matches was removed; Smart Match is the one matching feature.
+    const removedPageRedirects = [
+      { source: "/today-matches", destination: "/smart-match", permanent: true },
+      { source: "/admin/today-matches", destination: "/admin/smart-match", permanent: true },
+    ];
+    return [...categoryRedirects, ...adminRedirects, ...removedPageRedirects];
   },
 
   async headers() {

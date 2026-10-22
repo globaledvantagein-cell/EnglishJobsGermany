@@ -1,7 +1,6 @@
 // ─── Embeddings ────────────────────────────────────────────────────────────────
 //
-// Text → unit vector for meaning-based similarity. Used by Smart Match only;
-// Today's Matches stays AI-free.
+// Text → unit vector for meaning-based similarity. Used by Smart Match.
 //
 //   EMBEDDING_PROVIDER=local   (default) Transformers.js on this server — free,
 //                              unlimited, no API key. See EMBEDDINGS_SETUP.md.

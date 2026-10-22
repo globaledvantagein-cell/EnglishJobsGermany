@@ -27,7 +27,6 @@ const FEATURES: string[] = [
   'Unlimited job description views',
   'Unlimited apply clicks',
   'Smart Match — AI resume scoring',
-  "Today's Matches — daily personalized picks",
   'Advanced filters — salary, visa, relocation, experience, workplace',
   'Salary insights — extracted amounts with confidence tier',
   'Priority support',

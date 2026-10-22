@@ -176,7 +176,7 @@ export function PromoCodeForm({ onSuccess, source = 'modal', variant = 'default'
   );
 }
 
-// ─── Premium gate for full pages (Smart Match / Today's Matches) ─────────────
+// ─── Premium gate for full pages (Smart Match) ─────────────
 // No pitch card here anymore — a non-premium user landing on a premium page is
 // sent straight to /premium, which is the single conversion surface.
 export function PremiumPitch({ icon, title, description }: { icon?: ReactNode; title: string; description: string }) {

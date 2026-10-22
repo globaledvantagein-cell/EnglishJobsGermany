@@ -159,7 +159,6 @@ export async function getUserAnalytics({ days = 30 } = {}) {
         remoteViews: dates.map(d => field(d, 'pageViews_remoteJobs', 'pageViews_remoteJobDetail')),
         applyClicks: dates.map(d => field(d, 'applyClicks_total')),
         smartMatchRuns: dates.map(d => field(d, 'smartMatch_runs')),
-        todayMatchViews: dates.map(d => field(d, 'pageViews_todayMatches')),
         deletions: dates.map(d => field(d, 'accountDeletions')),
     };
 

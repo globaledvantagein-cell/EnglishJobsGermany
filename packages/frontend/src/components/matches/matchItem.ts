@@ -1,14 +1,11 @@
 /**
- * One shape for every kind of job match, so Smart Match (AI scoring) and
- * Today's Matches (programmatic skill overlap) render through the same
- * components. Each source has an adapter below; components never see the raw
- * API types.
+ * The shape the match components render, so they never see the raw Smart
+ * Match API types. fromSmartMatch() below is the adapter.
  */
-import type { MatchResult, SkillEntry } from '../../utils/resumeMatchApi';
-import type { FitDimensions, SkillMatchJob } from '../../utils/skillMatchApi';
+import type { FitDimensions, MatchResult, SkillEntry } from '../../utils/resumeMatchApi';
 
 export type MatchTier = 'strong' | 'good' | 'partial';
-export type MatchSource = 'smart' | 'skills';
+export type MatchSource = 'smart';
 
 export interface MatchFit { label: string; value: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' }
 
@@ -140,37 +137,5 @@ export function fromSmartMatch(result: MatchResult): MatchItem {
     applyUrl: result.job?.ApplicationURL || null,
     dimensions: toDimensions(result.fit?.dimensions),
     badges: result.badges ?? [],
-  };
-}
-
-/**
- * Today's Matches: deterministic fit 0–1 (no AI). Fit scores run lower than
- * AI scores for the same quality of match, so the tier bands are lower: on
- * real profiles the shown matches span ~48–79 (median 59), and Strong ≥ 65
- * keeps the label for roughly the top 15%.
- */
-export function fromSkillMatch(job: SkillMatchJob): MatchItem {
-  const score = Math.round(job.score * 100);
-  return {
-    id: job._id,
-    source: 'skills',
-    title: job.JobTitle,
-    company: job.Company,
-    location: job.Location,
-    workplace: job.WorkplaceType && job.WorkplaceType !== 'Unspecified' ? job.WorkplaceType : null,
-    experience: job.ExperienceLevel && job.ExperienceLevel !== 'N/A' ? job.ExperienceLevel : null,
-    category: job.Category ?? null,
-    postedAt: job.PostedDate ?? null,
-    score,
-    tier: tierFromScore(score, 65, 52),
-    matched: job.matchedSkills ?? [],
-    missing: job.missingSkills ?? [],
-    bonus: [],
-    requiredCount: job.totalSkillCount ?? null,
-    reasoning: null,
-    fits: [],
-    applyUrl: null,
-    dimensions: toDimensions(job.dimensions),
-    badges: job.badges ?? [],
   };
 }

@@ -19,7 +19,7 @@ import { useSyncExternalStore } from 'react';
 
 // Mirrors backend/src/features/featureRegistry.js (keys with a UI side).
 export type FeatureKey =
-  | 'smartMatch' | 'todayMatches' | 'resumeUpload' | 'matchFeedback' | 'jobPreferences'
+  | 'smartMatch' | 'resumeUpload' | 'matchFeedback' | 'jobPreferences'
   | 'googleLogin' | 'emailSignup' | 'promoCodes'
   | 'savedJobs' | 'applyTracking' | 'remoteJobs' | 'searchAutocomplete'
   | 'feedbackWidget'

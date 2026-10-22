@@ -1,5 +1,5 @@
-// Shared, deterministic job-fit engine (no AI). Used by Today's Matches
-// (skill-matcher) and Smart Match candidate selection (resume-matcher).
+// Deterministic job-fit engine (no AI). Smart Match (resume-matcher) uses it
+// to choose the candidates the AI scores.
 export { FIT_VERSION, buildCandidate, exclusionReason, scoreJobFit } from './jobFit.js';
 export { jobBadges } from './jobBadges.js';
 export { buildFeedbackProfile, feedbackMultiplier, isHidden, jobFeatures } from './feedbackModel.js';

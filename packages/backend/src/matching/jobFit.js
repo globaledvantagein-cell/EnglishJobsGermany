@@ -1,8 +1,7 @@
 // ─── Job Fit ───────────────────────────────────────────────────────────────────
 //
 // Deterministic (no AI, no API calls) fit between one candidate profile and one
-// job. Shared by Today's Matches, which ranks with it directly, and Smart
-// Match, which uses it to choose the candidates the AI scores.
+// job. Smart Match uses it to choose the candidates the AI scores.
 //
 // The dimensions mirror the ones job-match products publicly describe
 // (skills, experience, seniority, industry/role, preferences + gaps):

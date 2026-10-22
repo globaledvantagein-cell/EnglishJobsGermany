@@ -2,6 +2,7 @@ import { connectToDb, saveValidatorRun } from '../db/index.js';
 import { refreshJobsCache, refreshRemoteJobsCache } from '../cache/index.js';
 import { checkJobLiveness, Liveness } from '../core/jobLiveness.js';
 import { mapWithConcurrency } from '../utils/concurrency.js';
+import { pruneExpiredJobs } from './pruneExpiredJobs.js';
 
 // ─── Validator ─────────────────────────────────────────────────────────────
 //
@@ -148,6 +149,9 @@ export async function runValidator({ dryRun = false, limit = 0, force = false, s
         for (const name of COLLECTIONS) {
             summary[name] = await validateCollection(db, name, { dryRun, limit, force });
         }
+
+        // Expired jobs are only kept as small stubs; see pruneExpiredJobs.js.
+        if (!dryRun) await pruneExpiredJobs().catch(err => console.warn('[Validator] expired-job cleanup failed:', err.message));
 
         // Mass Status change → full refresh, same as the other bulk admin jobs.
         // The German cache has no change-stream watcher, so without this the

@@ -5,7 +5,7 @@
 // DELETE /api/jobs/match-feedback/:jobId       undo a "Not interested"
 //
 // Feeds the per-user ranking adjustments in src/matching/feedbackModel.js,
-// used by both Today's Matches and Smart Match.
+// used by Smart Match.
 
 import { Router } from 'express';
 import { verifyToken } from '../../middleware/authMiddleware.js';
@@ -17,7 +17,7 @@ import { Analytics } from '../../models/analyticsModel.js';
 const router = Router();
 
 const ACTIONS = new Set(['dismiss', 'open', 'view_job', 'company_site', 'save', 'apply']);
-const SOURCES = new Set(['today', 'smart']);
+const SOURCES = new Set(['smart']);
 export const DISMISS_REASONS = new Set([
     'company', 'role', 'skills', 'location', 'seniority', 'work_auth', 'already_applied', 'not_real', 'other',
 ]);

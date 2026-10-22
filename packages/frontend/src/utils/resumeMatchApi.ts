@@ -104,11 +104,20 @@ export interface MatchResultJob {
   Category?: string;
 }
 
+/** Per-dimension fit, 0–1; null when the job lacks the data to judge it. */
+export interface FitDimensions {
+  skills: number | null;
+  experience: number | null;
+  seniority: number | null;
+  role: number | null;
+  preferences: number | null;
+}
+
 /** Deterministic fit breakdown attached by the backend's matching engine. */
 export interface MatchFitInfo {
   score: number;
   confidence: number;
-  dimensions: import('./skillMatchApi').FitDimensions;
+  dimensions: FitDimensions;
   requiredCount: number | null;
   matchedRequired: number | null;
 }

@@ -4,7 +4,7 @@
 import { apiDelete, apiPost } from './jobApi';
 import { isFeatureOn } from '../hooks/useFeature';
 
-export type MatchSource = 'today' | 'smart';
+export type MatchSource = 'smart';
 export type MatchAction = 'dismiss' | 'open' | 'view_job' | 'company_site' | 'save' | 'apply';
 export type DismissReason =
   | 'company' | 'role' | 'skills' | 'location' | 'seniority' | 'work_auth'

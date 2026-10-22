@@ -26,11 +26,9 @@ const analyticsSchema = new mongoose.Schema({
   pageViews_remoteJobs: { type: Number, default: 0 },      // GET /api/remote-jobs list
   pageViews_remoteJobDetail: { type: Number, default: 0 }, // GET /api/remote-jobs/:id/full
   pageViews_smartMatch: { type: Number, default: 0 },  // Smart Match GET + POST
-  pageViews_todayMatches: { type: Number, default: 0 },// GET /skill-matches
   signups: { type: Number, default: 0 },               // new users (any method)
   signups_google: { type: Number, default: 0 },        // new users via Google
   smartMatch_runs: { type: Number, default: 0 },       // Smart Match pipeline runs
-  todayMatch_runs: { type: Number, default: 0 },       // fresh skill-match computes
   applyClicks_total: { type: Number, default: 0 },     // apply-click events
   visitor_conversions: { type: Number, default: 0 },   // anon visitor → logged in
   accountDeletions: { type: Number, default: 0 },      // GDPR self-deletions (count only, no PII kept)

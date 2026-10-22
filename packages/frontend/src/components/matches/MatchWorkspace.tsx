@@ -4,7 +4,7 @@
  * The shared match screen: header + profile strip, a sticky filter toolbar,
  * a ranked list on the left and a sticky "why this matches" pane on the right.
  *
- * Used by /smart-match and /today-matches, and by their /admin twins
+ * Used by /smart-match and its /admin twin
  * (embedded → tighter spacing, sticky offsets for the admin shell). Pages only
  * fetch data and map it to MatchItem[]; everything visual lives here.
  *
@@ -363,7 +363,7 @@ function MatchDetail({ item, onBack, onTrack, onDismiss }: {
             </div>
           </div>
         </div>
-        <ScoreRing score={item.score} tier={item.tier} caption={item.source === 'smart' ? 'AI' : 'MATCH'} />
+        <ScoreRing score={item.score} tier={item.tier} caption="AI" />
       </div>
 
       <div className="mx-detail-body">
@@ -428,11 +428,6 @@ function MatchDetail({ item, onBack, onTrack, onDismiss }: {
             <div className="mx-section-label">Extra strengths you bring · {item.bonus.length}</div>
             <SkillChips skills={item.bonus} kind="bonus" />
           </div>
-        )}
-        {item.source === 'skills' && item.requiredCount != null && item.requiredCount > item.matched.length && (
-          <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--subtle-ink)' }}>
-            {item.requiredCount - item.matched.length} more skill{item.requiredCount - item.matched.length === 1 ? '' : 's'} listed on the job. Open it to see the full requirements.
-          </p>
         )}
       </div>
 

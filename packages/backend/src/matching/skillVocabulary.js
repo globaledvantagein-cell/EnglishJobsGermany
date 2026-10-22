@@ -18,7 +18,6 @@
 import { getAllJobs, getCacheStats } from '../cache/index.js';
 
 // Canonical → aliases (normalised: lowercase, no dots/dashes/slashes/spaces).
-// Moved from skill-matcher/matchSkills.js; both matchers now share it.
 const SYNONYM_GROUPS = [
     ['javascript', 'js', 'ecmascript'],
     ['typescript', 'ts'],

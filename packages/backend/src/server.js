@@ -48,7 +48,7 @@ app.use(attachVisitor); // adds lazy req.resolveVisitor() to every request
 
 // Warm-up guard. app.listen() accepts connections IMMEDIATELY, while the boot
 // callback below still needs ~90s to load 4k+ jobs into RAM. Without this,
-// every cache-backed route (job list, Smart Match, Today's Matches) threw
+// every cache-backed route (job list, Smart Match) threw
 // "[jobsCache] cache is not initialized yet" and surfaced as a generic 500 for
 // the first minute-and-a-half after every deploy/restart. A 503 + Retry-After
 // is the honest answer: the server is up, this route just isn't ready yet.

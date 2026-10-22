@@ -13,7 +13,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-// parsedRequirements is deliberately NOT here — the skill-matcher needs it in
+// parsedRequirements is deliberately NOT here — Smart Match's candidate filter needs it in
 // the cache; only the description fields are excluded by the load projection.
 const HEAVY_FIELDS = ['Description', 'DescriptionHtml'];
 

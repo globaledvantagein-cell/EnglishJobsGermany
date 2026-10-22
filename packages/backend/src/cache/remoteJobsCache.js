@@ -185,7 +185,7 @@ export async function initRemoteJobsCache(){
 
     const db = await connectToRemoteDb();
     // Heavy fields excluded — same projection as jobsCache (parsedRequirements
-    // kept for the skill-matcher); the remote detail endpoint reads MongoDB
+    // kept for Smart Match's candidate filter); the remote detail endpoint reads MongoDB
     // directly, the cache never needs the description fields.
     const cursor = db.collection('remoteJobs').find(
         { Status: 'active' },

@@ -3,14 +3,12 @@ export const PUBLIC_LINKS: ReadonlyArray<readonly [string, string]> = [
   ['/remote-jobs',   'Remote Jobs'],
   ['/directory',     'Companies'],
   ['/career-guide',  'Career Guide'],
-  ['/today-matches', "Today's Matches"],
   ['/smart-match',   'Smart Match'],
 ];
 
 // Premium-only destinations. The nav keeps them visible (awareness, not
 // blocking) but marks them with a crown for non-premium users.
 export const PREMIUM_NAV_PATHS: ReadonlySet<string> = new Set([
-  '/today-matches',
   '/smart-match',
 ]);
 

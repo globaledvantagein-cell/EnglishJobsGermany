@@ -148,10 +148,7 @@ export async function getMatchProfile(userId) {
 
     const user = await usersCollection.findOne(
         { _id: new ObjectId(userId) },
-        // dailyMatches is included so the Today's Matches route can read its
-        // own cache — without it, `stored?.dailyMatches` is always undefined
-        // and every request recomputes (the cache write becomes dead weight).
-        { projection: { parsedProfile: 1, lastResumeHash: 1, jobPreferences: 1, dailyMatches: 1 } },
+        { projection: { parsedProfile: 1, lastResumeHash: 1, jobPreferences: 1 } },
     );
     return user || null;
 }

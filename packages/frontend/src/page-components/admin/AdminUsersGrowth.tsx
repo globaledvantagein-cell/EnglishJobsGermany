@@ -25,7 +25,7 @@ import {
   Btn, DefinitionGrid, Empty, Kpis, Panel, Pill, Seg, SkeletonRows, errorText, fmtAge, fmtDate, fmtNumber,
 } from '../../components/admin/primitives';
 
-type SeriesKey = 'signups' | 'activeUsers' | 'newVisitors' | 'jobViews' | 'remoteViews' | 'applyClicks' | 'smartMatchRuns' | 'todayMatchViews' | 'deletions';
+type SeriesKey = 'signups' | 'activeUsers' | 'newVisitors' | 'jobViews' | 'remoteViews' | 'applyClicks' | 'smartMatchRuns' | 'deletions';
 interface QuietUser {
   id: string; name: string; email: string; createdAt: string; lastActive: string;
   isPremium: boolean; source: string; hasProfile: boolean; hasApplied: boolean;
@@ -52,7 +52,6 @@ const SERIES: Array<{ key: SeriesKey; label: string; goodWhenUp?: boolean }> = [
   { key: 'jobViews', label: 'Job views' },
   { key: 'applyClicks', label: 'Apply clicks' },
   { key: 'smartMatchRuns', label: 'Smart Match runs' },
-  { key: 'todayMatchViews', label: "Today's Matches" },
   { key: 'remoteViews', label: 'Remote views' },
   { key: 'deletions', label: 'Account deletions', goodWhenUp: false },
 ];

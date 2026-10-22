@@ -1,7 +1,7 @@
 // ─── Feedback Model ────────────────────────────────────────────────────────────
 //
 // Turns a user's match events into per-user ranking adjustments. Pure
-// arithmetic — no AI — so Today's Matches can use it too.
+// arithmetic — no AI.
 //
 // Signals and weights (positive = "more like this"):
 //   apply +1.5 · save +1 · company_site +0.8 · view_job +0.5 · open +0.15

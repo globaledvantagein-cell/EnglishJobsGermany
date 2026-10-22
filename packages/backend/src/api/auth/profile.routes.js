@@ -189,8 +189,8 @@ export function attachProfileRoutes(authRouter) {
                         { _id: new ObjectId(userId) },
                         {
                             $set: { resumeParseStatus: 'complete' },
-                            // Fresh profile invalidates Today's Matches and Smart Match caches.
-                            $unset: { dailyMatches: '', smartMatchCache: '', resumeParseStartedAt: '', resumeParseError: '' },
+                            // Fresh profile invalidates the Smart Match cache.
+                            $unset: { smartMatchCache: '', resumeParseStartedAt: '', resumeParseError: '' },
                         },
                     );
                     console.log(`[Auth/upload-resume] Background parse complete for ${userId}`);
@@ -298,7 +298,7 @@ export function attachProfileRoutes(authRouter) {
                         'parsedProfile.skills': cleaned,
                         profileUpdatedAt: new Date(),
                     },
-                    $unset: { dailyMatches: '', smartMatchCache: '' },  // invalidate Today's Matches and Smart Match caches
+                    $unset: { smartMatchCache: '' },  // invalidate the Smart Match cache
                 },
             );
 

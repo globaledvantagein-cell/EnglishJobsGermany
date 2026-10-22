@@ -21,7 +21,6 @@ const PREMIUM_FEATURES = [
     'Unlimited job description views',
     'Unlimited apply clicks',
     'Smart Match — AI resume scoring',
-    "Today's Matches — daily personalized picks",
     'Advanced filters — salary, visa, relocation & more',
     'Salary insights on every role',
 ];

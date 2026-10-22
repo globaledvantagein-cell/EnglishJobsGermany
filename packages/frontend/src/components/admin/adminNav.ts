@@ -1,6 +1,6 @@
 import {
   Activity, BookOpen, Brain, Building2, ClipboardCheck, Crown, LayoutDashboard,
-  MessageSquare, PlusSquare, Power, Sparkles, Sun, Trash2, type LucideIcon,
+  MessageSquare, PlusSquare, Power, Sparkles, Trash2, type LucideIcon,
 } from 'lucide-react';
 
 /** Which live counter (if any) a nav item shows as a badge. */
@@ -58,7 +58,6 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     label: 'Matching',
     items: [
       { href: '/admin/smart-match', label: 'Smart Match', icon: Sparkles },
-      { href: '/admin/today-matches', label: "Today's matches", icon: Sun },
     ],
   },
 ];

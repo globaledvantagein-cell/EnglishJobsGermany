@@ -25,11 +25,6 @@ export const FEATURE_REGISTRY = [
         routes: [['*', /^\/api\/jobs\/admin\/resume-match/]],
     },
     {
-        key: 'todayMatches', ui: 'TodayMatches page → paused notice', group: 'Matching', label: "Today's Matches",
-        description: 'Daily skill-based matches (no AI).',
-        routes: [['*', /^\/api\/jobs\/skill-matches/]],
-    },
-    {
         key: 'resumeUpload', ui: 'Profile CV upload → error message', group: 'Matching', label: 'Resume upload & parsing',
         description: 'Uploading a CV to the profile (AI parse).',
         routes: [['POST', /^\/api\/auth\/upload-resume/]],
