@@ -27,6 +27,7 @@ export const RPM_COOLDOWN_MS = 62_000; // default cooldown when a 429 carries no
 // minute, whereas a local cap just routes the call to another key/model.
 // Counts are per key per model per UTC day.
 export const MODEL_RPD_CAPS = {
+    'gemini-3.8-flash': 17,
     'gemini-3.7-flash': 17,
     'gemini-3.6-flash': 17,
     'gemini-3.5-flash-lite': 480,
@@ -38,6 +39,7 @@ export const MODEL_RPD_CAPS = {
 };
 
 export const MODEL_RPM_CAPS = {
+    'gemini-3.8-flash': 4,
     'gemini-3.7-flash': 4,
     'gemini-3.6-flash': 4,
     'gemini-3.5-flash-lite': 13,
@@ -58,10 +60,12 @@ const keyStates = GEMINI_API_KEYS.map((apiKey, index) => ({
     apiKey,
     index,
     dead: false,              // 403 Forbidden — permanently unusable
-    cooldownUntil: null,      // epoch ms while RPM-limited, null when ready
+    cooldownUntil: null,      // epoch ms while RPM-limited (any model), null when ready
+    modelCooldowns: new Map(),// modelName -> epoch ms; a 429 limits one model, not the key
     requestsThisMinute: 0,
     minuteWindowStart: Date.now(),
     modelUsage: new Map(),    // modelName -> requests made today with this key
+    exhaustedModels: new Set(), // models Google says are out of daily quota on this key
 }));
 
 console.log(`[Gemini] Initialized ${keyStates.length} shared API key(s)`);
@@ -81,7 +85,10 @@ let currentDateKey = utcDateKey();
 
 /** Clears every key's per-model daily counters. */
 export function resetDailyCounts() {
-    for (const ks of keyStates) ks.modelUsage.clear();
+    for (const ks of keyStates) {
+        ks.modelUsage.clear();
+        ks.exhaustedModels.clear();
+    }
     currentDateKey = utcDateKey();
     console.log(`[Gemini] Daily model usage counters reset for ${currentDateKey} (UTC)`);
 }
@@ -102,11 +109,13 @@ export function getModelUsageForKey(keyIndex, modelName) {
  * A model with no configured cap is never considered exhausted.
  */
 export function isModelExhaustedOnKey(keyIndex, modelName) {
-    const cap = MODEL_RPD_CAPS[modelName];
-    if (cap === undefined) return false;
     const ks = keyStates[keyIndex];
     if (!ks) return true;
     if (ks.dead) return true;
+    refreshDailyWindow();
+    if (ks.exhaustedModels.has(modelName)) return true;
+    const cap = MODEL_RPD_CAPS[modelName];
+    if (cap === undefined) return false;
     return getModelUsageForKey(keyIndex, modelName) >= cap;
 }
 
@@ -126,11 +135,12 @@ function refreshWindow(ks, now) {
     }
 }
 
-/** True when the key is neither dead nor inside an active cooldown. */
-function isAvailable(ks, now) {
+/** True when the key is neither dead nor cooling down (for `model`, when given). */
+function isAvailable(ks, now, model) {
     if (ks.dead) return false;
     if (ks.cooldownUntil && now < ks.cooldownUntil) return false;
     if (ks.cooldownUntil) ks.cooldownUntil = null; // expired — clear it
+    if (model && (ks.modelCooldowns.get(model) || 0) > now) return false;
     return true;
 }
 
@@ -153,7 +163,7 @@ export function getNextKey(model) {
 
     for (const ks of keyStates) {
         refreshWindow(ks, now);
-        if (!isAvailable(ks, now)) continue;
+        if (!isAvailable(ks, now, model)) continue;
         if (model && isModelExhaustedOnKey(ks.index, model)) continue;
         // Stay under the model's RPM ceiling rather than earning a 429.
         if (rpmCap !== undefined && ks.requestsThisMinute >= rpmCap) continue;
@@ -170,15 +180,38 @@ export function getNextKey(model) {
     };
 }
 
+/** True when some key could serve `model` right now. Reserves nothing. */
+export function canServeNow(model) {
+    const now = Date.now();
+    const rpmCap = MODEL_RPM_CAPS[model];
+    return keyStates.some(ks => {
+        refreshWindow(ks, now);
+        return isAvailable(ks, now, model)
+            && !isModelExhaustedOnKey(ks.index, model)
+            && (rpmCap === undefined || ks.requestsThisMinute < rpmCap);
+    });
+}
+
 /**
  * Marks a key rate-limited for `cooldownSeconds` (defaults to 62s). Every other
- * consumer skips it until the cooldown expires.
+ * consumer skips it until the cooldown expires. Google's limits are per model,
+ * so with `model` only that model is parked and the key keeps serving others.
  */
-export function markKeyRpmLimited(index, cooldownSeconds) {
+export function markKeyRpmLimited(index, cooldownSeconds, model) {
     const ks = keyStates[index];
     if (!ks) return;
     const cooldownMs = cooldownSeconds > 0 ? cooldownSeconds * 1_000 : RPM_COOLDOWN_MS;
-    ks.cooldownUntil = Date.now() + cooldownMs;
+    if (model) ks.modelCooldowns.set(model, Date.now() + cooldownMs);
+    else ks.cooldownUntil = Date.now() + cooldownMs;
+}
+
+/**
+ * Google refused `model` on this key for the rest of its quota day. Counted as
+ * exhausted until the local daily reset, so the cascade moves on to the next
+ * model instead of waiting ~24h for this one.
+ */
+export function markModelExhaustedOnKey(index, model) {
+    keyStates[index]?.exhaustedModels.add(model);
 }
 
 /** Marks a key permanently unusable (403 Forbidden). Never retried. */
@@ -202,14 +235,16 @@ export function getTotalKeyCount() {
  * Shortest remaining cooldown across all non-dead keys, in ms.
  * null when no key is merely cooling down (i.e. every key is dead).
  */
-export function shortestCooldownMs() {
+export function shortestCooldownMs(model) {
     const now = Date.now();
     let shortest = null;
 
     for (const ks of keyStates) {
         if (ks.dead) continue;
-        if (!ks.cooldownUntil) continue;
-        const remaining = ks.cooldownUntil - now;
+        if (model && isModelExhaustedOnKey(ks.index, model)) continue;
+        const until = Math.max(ks.cooldownUntil || 0, model ? ks.modelCooldowns.get(model) || 0 : 0);
+        if (!until) continue;
+        const remaining = until - now;
         if (remaining <= 0) continue;
         if (shortest === null || remaining < shortest) shortest = remaining;
     }
@@ -256,5 +291,6 @@ export function getAllKeysStatus() {
                 : 'ready',
         requestsThisMinute: ks.requestsThisMinute,
         modelUsageToday: Object.fromEntries(ks.modelUsage),
+        exhaustedModels: [...ks.exhaustedModels],
     }));
 }

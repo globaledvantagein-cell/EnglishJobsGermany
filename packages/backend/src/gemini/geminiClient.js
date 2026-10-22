@@ -12,6 +12,8 @@ import {
     getNextKey,
     markKeyDead,
     markKeyRpmLimited,
+    markModelExhaustedOnKey,
+    canServeNow,
     shortestCooldownMs,
     getTotalKeyCount,
     recordModelUsage,
@@ -28,6 +30,7 @@ const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 // drops to the next. Smart Match deliberately does NOT use this — it pins one
 // model via RESUME_MATCHER_MODEL so its scores stay comparable across runs.
 const GEMINI_CASCADE = [
+    'gemini-3.8-flash',
     'gemini-3.7-flash',
     'gemini-3.6-flash',
     'gemini-3.5-flash-lite',
@@ -54,6 +57,15 @@ const SERVER_ERROR_RETRY_MS = 2_000; // wait before the single 500/503 retry
 // HTTP request forever (fetch has no default timeout) — a Smart Match POST
 // that never returns, which the proxy eventually kills as a 5xx.
 const REQUEST_TIMEOUT_MS = 90_000;
+// A 429 asking for a longer wait than this is a daily quota, not a per-minute
+// one (Google sends ~86,000s once a model's RPD is spent). Waiting it out
+// stalled every scraper worker for a day while other models still had budget.
+const MAX_RPM_COOLDOWN_S = 120;
+// Upper bound on one "all keys busy" wait. Per-minute windows clear within it.
+const MAX_WAIT_MS = 65_000;
+// Waiting for a free key is queueing, not a failed attempt, so it does not use
+// up MAX_RETRY_CYCLES. Bounded separately (~10 min) so a caller still gives up.
+const MAX_WAITS = 10;
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -165,6 +177,7 @@ export async function callGeminiDetailed({ model, contents, systemInstruction, l
     const tag = label ? String(label).substring(0, 40) : model;
     const totalKeys = getTotalKeyCount();
     let hasRetriedServerError = false;
+    let waits = 0;
 
     for (let cycle = 1; cycle <= MAX_RETRY_CYCLES; cycle++) {
         // Daily budget gone everywhere is permanent — surface it as such so the
@@ -176,12 +189,15 @@ export async function callGeminiDetailed({ model, contents, systemInstruction, l
         // No key can serve this model right now. Cooldowns and per-minute
         // ceilings both clear on their own, so wait for whichever comes first.
         if (!slot) {
-            const waitMs = shortestCooldownMs() ?? msUntilMinuteWindowReset(model);
-            if (waitMs === null || waitMs === undefined) {
+            const soonest = shortestCooldownMs(model) ?? msUntilMinuteWindowReset(model);
+            if (soonest === null || soonest === undefined) {
                 throw new Error('[Gemini] All API keys are dead (403). Replace keys in .env and restart.');
             }
+            const waitMs = Math.min(soonest, MAX_WAIT_MS);
+            if (++waits > MAX_WAITS) break;
             console.warn(`[Gemini] All keys busy — waiting ${Math.round(waitMs / 1000)}s for the next available key`);
             await sleep(waitMs + 500);
+            cycle--;
             continue;
         }
 
@@ -216,11 +232,18 @@ export async function callGeminiDetailed({ model, contents, systemInstruction, l
                 continue;
             }
 
-            // Rate limited — park this key and move straight to another one.
+            // Rate limited — park this model on this key and move straight to
+            // another key. Limits are per model, so the key keeps serving the
+            // other cascade tiers.
             if (status === 429) {
                 const cooldownSeconds = parseRetryAfterSeconds(error.body) || 62;
-                markKeyRpmLimited(index, cooldownSeconds);
-                console.warn(`[Gemini] Key #${index + 1} RPM limited — cooldown ${cooldownSeconds}s`);
+                if (cooldownSeconds > MAX_RPM_COOLDOWN_S || /PerDay/i.test(error.body || '')) {
+                    markModelExhaustedOnKey(index, model);
+                    console.warn(`[Gemini] Key #${index + 1} out of daily quota for ${model} — using other keys/models`);
+                } else {
+                    markKeyRpmLimited(index, cooldownSeconds, model);
+                    console.warn(`[Gemini] Key #${index + 1} RPM limited on ${model} — cooldown ${cooldownSeconds}s`);
+                }
                 continue;
             }
 
@@ -265,7 +288,13 @@ export async function callGemini(params) {
  * @throws when every model in the cascade is exhausted on every key
  */
 export async function callGeminiWithCascade({ contents, systemInstruction, label, generationConfig } = {}) {
-    for (let i = 0; i < GEMINI_CASCADE.length; i++) {
+    // Start at the best model a key can serve right now. Waiting on a tier's
+    // per-minute cap while a lower tier sits idle wastes the pool; only when no
+    // tier is free does the call queue on the best one with budget left.
+    const free = GEMINI_CASCADE.findIndex(model => canServeNow(model));
+    const start = free === -1 ? 0 : free;
+
+    for (let i = start; i < GEMINI_CASCADE.length; i++) {
         const model = GEMINI_CASCADE[i];
 
         if (isModelExhaustedEverywhere(model)) {

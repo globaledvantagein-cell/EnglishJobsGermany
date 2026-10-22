@@ -177,6 +177,7 @@ export async function processJob(rawJob, siteConfig, existingIDs, sessionHeaders
         aiResult = await analyzeJobWithGroq(mappedJob.JobTitle, mappedJob.Description);
         if (!aiResult) {
             console.log(`[AI] Failed to analyze ${mappedJob.JobTitle}. Skipping.`);
+            await siteConfig.onAnalysisFailed?.(rawJob);
             return null;
         }
     }

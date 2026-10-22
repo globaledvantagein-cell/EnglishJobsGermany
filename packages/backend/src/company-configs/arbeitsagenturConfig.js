@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
 import { normalizeArray } from '../core/jobExtractor.js';
-import { loadSeenPostings, markPostingSeen } from '../core/scrapeState.js';
+import { loadSeenPostings, markPostingSeen, unmarkPostingSeen } from '../core/scrapeState.js';
 import { isFeatureEnabled } from '../features/featureSwitches.js';
 
 // --- Bundesagentur für Arbeit (Federal Employment Agency) ----------------------
@@ -164,6 +164,12 @@ export const arbeitsagenturConfig = {
             Description: detail.stellenangebotsBeschreibung,
             DirectApplyURL: detail.externeURL || null,
         };
+    },
+
+    // The AI call failed (quota, outage): the posting was never judged, so it
+    // must come back next run instead of staying marked as seen.
+    async onAnalysisFailed(job) {
+        await unmarkPostingSeen(SEEN_SOURCE, job.referenznummer).catch(() => {});
     },
 
     // -- Field extractors -------------------------------------------------------

@@ -172,6 +172,12 @@ export async function loadSeenPostings(source) {
     return new Set(docs.map(d => d.key));
 }
 
+/** Forgets a posting so the next run fetches it again (e.g. its AI call failed). */
+export async function unmarkPostingSeen(source, key) {
+    const collection = await seenCollection();
+    await collection.deleteOne({ _id: `${source}|${key}` });
+}
+
 /** Records one fetched posting. Idempotent. */
 export async function markPostingSeen(source, key) {
     const collection = await seenCollection();
